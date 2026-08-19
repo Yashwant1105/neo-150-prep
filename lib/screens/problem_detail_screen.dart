@@ -170,7 +170,6 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
                       height: 52,
                       child: FilledButton.icon(
                         onPressed: () => _toggleCompletion(
-                          context,
                           progress.completed,
                         ),
                         icon: Icon(
@@ -196,9 +195,11 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
                       .read(appControllerProvider.notifier)
                       .flagForReview(widget.problem);
 
-                  if (!mounted) return;
+                  if (!mounted) {
+                    return;
+                  }
 
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(this.context).showSnackBar(
                     const SnackBar(
                       content: Text(
                         'Review queued for 14 days.',
@@ -261,15 +262,14 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
     );
   }
 
-  Future<void> _toggleCompletion(
-    BuildContext context,
-    bool wasCompleted,
-  ) async {
+  Future<void> _toggleCompletion(bool wasCompleted) async {
     final controller = ref.read(appControllerProvider.notifier);
 
     await controller.toggleComplete(widget.problem);
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     // Only reward the transition:
     //
@@ -279,19 +279,15 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
     if (!wasCompleted) {
       final updatedState = ref.read(appControllerProvider).value;
 
-      if (updatedState == null) return;
+      if (updatedState == null) {
+        return;
+      }
 
-      _showCompletionReward(
-        context,
-        updatedState,
-      );
+      _showCompletionReward(updatedState);
     }
   }
 
-  void _showCompletionReward(
-    BuildContext context,
-    AppState state,
-  ) {
+  void _showCompletionReward(AppState state) {
     final streak = state.currentStreak;
 
     final compliment = _getCompliment(
@@ -309,7 +305,7 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
         milliseconds: 350,
       ),
       pageBuilder: (
-        context,
+        dialogContext,
         animation,
         secondaryAnimation,
       ) {
@@ -326,8 +322,8 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
                   totalCompleted: state.completed,
                   compliment: compliment,
                   onNext: () {
-                    Navigator.pop(context);
-                    _openNextProblem(context, state);
+                    Navigator.pop(dialogContext);
+                    _openNextProblem(state);
                   },
                 ),
               ),
@@ -336,7 +332,7 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
         );
       },
       transitionBuilder: (
-        context,
+        dialogContext,
         animation,
         secondaryAnimation,
         child,
@@ -401,15 +397,10 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
       'Nice. Your problem-solving muscle is getting stronger.',
     ];
 
-    // Deterministic selection avoids repeating the same message
-    // too predictably without needing another state system yet.
     return compliments[completed % compliments.length];
   }
 
-  void _openNextProblem(
-    BuildContext context,
-    AppState state,
-  ) {
+  void _openNextProblem(AppState state) {
     final next = state.nextProblem;
 
     if (next == null) {
@@ -639,3 +630,4 @@ class _CompletionRewardCardState extends State<_CompletionRewardCard>
     );
   }
 }
+s
