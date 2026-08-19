@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <title>Halfway There</title>
+  
+<polygon points="12,1.8 21,7 21,17 12,22.2 3,17 3,7" fill="#0B0F0D" stroke="#B7FF4A" stroke-width="1.2"/>
+<polygon points="12,4 18.7,7.9 18.7,16.1 12,20 5.3,16.1 5.3,7.9" fill="none" stroke="#93A39A" stroke-width="0.8"/>
+<circle cx="12" cy="12" r="7.2" stroke="#F4F7F3" stroke-width="1.5"/><path d="M12 4.8a7.2 7.2 0 0 1 0 14.4Z" fill="#B7FF4A"/><path d="M12 4.8v14.4" stroke="#F4F7F3" stroke-width="1"/>
+
+</svg>

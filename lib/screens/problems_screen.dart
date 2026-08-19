@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
 import '../models/problem.dart';
 import '../providers/app_controller.dart';
 import '../widgets/ui.dart';
@@ -145,9 +147,10 @@ class _ProblemsScreenState extends ConsumerState<ProblemsScreen> {
             top: false,
             child: Column(
               children: [
-                // ---------------------------------------------------------------
+                // -----------------------------------------------------------------
                 // SEARCH
-                // ---------------------------------------------------------------
+                // -----------------------------------------------------------------
+
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
                     16,
@@ -162,17 +165,26 @@ class _ProblemsScreenState extends ConsumerState<ProblemsScreen> {
                       });
                     },
                     textInputAction: TextInputAction.search,
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.search),
+                    decoration: InputDecoration(
+                      prefixIcon: Padding(
+                        padding: const EdgeInsets.all(13),
+                        child: SvgPicture.asset(
+                          'assets/icons/core/search.svg',
+                          width: 18,
+                          height: 18,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
                       hintText: 'Search 150 problems...',
                       isDense: true,
                     ),
                   ),
                 ),
 
-                // ---------------------------------------------------------------
+                // -----------------------------------------------------------------
                 // FILTER BAR
-                // ---------------------------------------------------------------
+                // -----------------------------------------------------------------
+
                 SizedBox(
                   height: 48,
                   child: ListView.separated(
@@ -190,12 +202,19 @@ class _ProblemsScreenState extends ConsumerState<ProblemsScreen> {
                             topic,
                             topics,
                           );
+
                         case 1:
                           return _filterChip(
                             'Difficulty',
                             difficulty,
-                            ['All', 'Easy', 'Medium', 'Hard'],
+                            [
+                              'All',
+                              'Easy',
+                              'Medium',
+                              'Hard',
+                            ],
                           );
+
                         case 2:
                           return _filterChip(
                             'Status',
@@ -206,6 +225,7 @@ class _ProblemsScreenState extends ConsumerState<ProblemsScreen> {
                               'Not Completed',
                             ],
                           );
+
                         default:
                           return _filterChip(
                             'Sort',
@@ -224,9 +244,10 @@ class _ProblemsScreenState extends ConsumerState<ProblemsScreen> {
                   ),
                 ),
 
-                // ---------------------------------------------------------------
+                // -----------------------------------------------------------------
                 // RESULT SUMMARY
-                // ---------------------------------------------------------------
+                // -----------------------------------------------------------------
+
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
                     20,
@@ -240,9 +261,10 @@ class _ProblemsScreenState extends ConsumerState<ProblemsScreen> {
                         child: Text(
                           '${list.length} problems',
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: humanTextStyle(
                             color: muted,
                             fontSize: 12,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
@@ -265,9 +287,10 @@ class _ProblemsScreenState extends ConsumerState<ProblemsScreen> {
                   ),
                 ),
 
-                // ---------------------------------------------------------------
+                // -----------------------------------------------------------------
                 // PROBLEM LIST / EMPTY STATE
-                // ---------------------------------------------------------------
+                // -----------------------------------------------------------------
+
                 Expanded(
                   child: list.isEmpty
                       ? _EmptyResults(
@@ -310,7 +333,10 @@ class _ProblemsScreenState extends ConsumerState<ProblemsScreen> {
                                 child: Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    // Problem number
+                                    // -------------------------------------------------
+                                    // PROBLEM NUMBER
+                                    // -------------------------------------------------
+
                                     SizedBox(
                                       width: 30,
                                       child: Padding(
@@ -322,7 +348,7 @@ class _ProblemsScreenState extends ConsumerState<ProblemsScreen> {
                                             2,
                                             '0',
                                           ),
-                                          style: const TextStyle(
+                                          style: technicalTextStyle(
                                             color: muted,
                                             fontSize: 11,
                                             fontWeight: FontWeight.w800,
@@ -333,7 +359,10 @@ class _ProblemsScreenState extends ConsumerState<ProblemsScreen> {
 
                                     const SizedBox(width: 8),
 
-                                    // Completion indicator
+                                    // -------------------------------------------------
+                                    // COMPLETION INDICATOR
+                                    // -------------------------------------------------
+
                                     Padding(
                                       padding: const EdgeInsets.only(
                                         top: 1,
@@ -353,19 +382,26 @@ class _ProblemsScreenState extends ConsumerState<ProblemsScreen> {
                                             color: done ? acid : line,
                                           ),
                                         ),
-                                        child: Icon(
-                                          done
-                                              ? Icons.check
-                                              : Icons.circle_outlined,
-                                          size: 16,
-                                          color: done ? acid : muted,
-                                        ),
+                                        child: done
+                                            ? SvgPicture.asset(
+                                                'assets/icons/core/check.svg',
+                                                width: 16,
+                                                height: 16,
+                                              )
+                                            : const Icon(
+                                                Icons.circle_outlined,
+                                                size: 16,
+                                                color: muted,
+                                              ),
                                       ),
                                     ),
 
                                     const SizedBox(width: 12),
 
-                                    // Flexible problem information
+                                    // -------------------------------------------------
+                                    // PROBLEM INFORMATION
+                                    // -------------------------------------------------
+
                                     Expanded(
                                       child: Column(
                                         crossAxisAlignment:
@@ -382,16 +418,15 @@ class _ProblemsScreenState extends ConsumerState<ProblemsScreen> {
                                                   : null,
                                             ),
                                           ),
-                                          const SizedBox(
-                                            height: 5,
-                                          ),
+                                          const SizedBox(height: 5),
                                           Text(
                                             p.topic,
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
+                                            style: humanTextStyle(
                                               color: muted,
                                               fontSize: 11,
+                                              fontWeight: FontWeight.w500,
                                             ),
                                           ),
                                         ],
@@ -400,7 +435,10 @@ class _ProblemsScreenState extends ConsumerState<ProblemsScreen> {
 
                                     const SizedBox(width: 8),
 
-                                    // Difficulty + review indicator
+                                    // -------------------------------------------------
+                                    // DIFFICULTY + REVIEW
+                                    // -------------------------------------------------
+
                                     Flexible(
                                       flex: 0,
                                       child: Column(
@@ -412,14 +450,19 @@ class _ProblemsScreenState extends ConsumerState<ProblemsScreen> {
                                             difficulty: p.difficulty,
                                           ),
                                           if (pr?.reviewDueAt != null)
-                                            const Padding(
-                                              padding: EdgeInsets.only(
+                                            Padding(
+                                              padding: const EdgeInsets.only(
                                                 top: 6,
                                               ),
-                                              child: Icon(
-                                                Icons.bookmark_outline,
-                                                color: acid,
-                                                size: 17,
+                                              child: SvgPicture.asset(
+                                                'assets/icons/core/bookmark.svg',
+                                                colorFilter:
+                                                    const ColorFilter.mode(
+                                                  acid,
+                                                  BlendMode.srcIn,
+                                                ),
+                                                width: 17,
+                                                height: 17,
                                               ),
                                             ),
                                         ],
@@ -513,8 +556,6 @@ class _ProblemsScreenState extends ConsumerState<ProblemsScreen> {
         final media = MediaQuery.of(sheetContext);
         final screenHeight = media.size.height;
 
-        // Keep the sheet within a safe percentage of the available
-        // screen. The ListView below handles any remaining options.
         final maxHeight = screenHeight * 0.78;
 
         final currentValue = label == 'Topic'
@@ -537,6 +578,7 @@ class _ProblemsScreenState extends ConsumerState<ProblemsScreen> {
                 const SizedBox(height: 10),
 
                 // Bottom-sheet handle
+
                 Container(
                   width: 38,
                   height: 4,
@@ -549,6 +591,7 @@ class _ProblemsScreenState extends ConsumerState<ProblemsScreen> {
                 const SizedBox(height: 14),
 
                 // Sheet header
+
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 20,
@@ -569,9 +612,10 @@ class _ProblemsScreenState extends ConsumerState<ProblemsScreen> {
                       const SizedBox(width: 12),
                       Text(
                         '${values.length} options',
-                        style: const TextStyle(
+                        style: technicalTextStyle(
                           color: muted,
-                          fontSize: 11,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ],
@@ -580,7 +624,8 @@ class _ProblemsScreenState extends ConsumerState<ProblemsScreen> {
 
                 const SizedBox(height: 8),
 
-                // Scrollable options.
+                // Scrollable options
+
                 Flexible(
                   child: Scrollbar(
                     child: ListView.builder(
@@ -608,9 +653,14 @@ class _ProblemsScreenState extends ConsumerState<ProblemsScreen> {
                             ),
                           ),
                           trailing: selected
-                              ? const Icon(
-                                  Icons.check,
-                                  color: acid,
+                              ? SvgPicture.asset(
+                                  'assets/icons/core/check.svg',
+                                  colorFilter: const ColorFilter.mode(
+                                    acid,
+                                    BlendMode.srcIn,
+                                  ),
+                                  width: 20,
+                                  height: 20,
                                 )
                               : null,
                           onTap: () {
@@ -681,10 +731,12 @@ class _EmptyResults extends StatelessWidget {
                   color: acid.withValues(alpha: 0.10),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.search_off_rounded,
-                  color: acid,
-                  size: 30,
+                child: Padding(
+                  padding: const EdgeInsets.all(17),
+                  child: SvgPicture.asset(
+                    'assets/icons/core/search.svg',
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -702,17 +754,27 @@ class _EmptyResults extends StatelessWidget {
                     ? 'Try changing your search or filters.'
                     : 'There are no problems to display right now.',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: humanTextStyle(
                   color: muted,
                   fontSize: 13,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               if (hasFilters) ...[
                 const SizedBox(height: 16),
                 OutlinedButton.icon(
                   onPressed: onClear,
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Clear filters'),
+                  icon: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: SvgPicture.asset(
+                      'assets/icons/core/sync.svg',
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  label: const Text(
+                    'Clear filters',
+                  ),
                 ),
               ],
             ],

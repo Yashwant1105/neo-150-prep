@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../models/problem.dart';
 import '../providers/app_controller.dart';
@@ -41,6 +42,7 @@ class HomeScreen extends ConsumerWidget {
               // -----------------------------------------------------------------
               // HEADER
               // -----------------------------------------------------------------
+
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(
                   20,
@@ -56,6 +58,7 @@ class HomeScreen extends ConsumerWidget {
               // -----------------------------------------------------------------
               // PROGRESS
               // -----------------------------------------------------------------
+
               SliverPadding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20,
@@ -69,6 +72,7 @@ class HomeScreen extends ConsumerWidget {
               // -----------------------------------------------------------------
               // QUICK STATS
               // -----------------------------------------------------------------
+
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(
                   20,
@@ -84,6 +88,7 @@ class HomeScreen extends ConsumerWidget {
               // -----------------------------------------------------------------
               // CONTINUE SOLVING
               // -----------------------------------------------------------------
+
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(
                   20,
@@ -105,8 +110,12 @@ class HomeScreen extends ConsumerWidget {
                 sliver: SliverToBoxAdapter(
                   child: s.nextProblem == null
                       ? GlowCard(
-                          child: const Text(
+                          child: Text(
                             "You cleared the board. That's a serious grind. 🫡",
+                            style: humanTextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         )
                       : GlowCard(
@@ -132,6 +141,7 @@ class HomeScreen extends ConsumerWidget {
               // -----------------------------------------------------------------
               // DUE REVIEWS
               // -----------------------------------------------------------------
+
               if (s.dueReviews.isNotEmpty) ...[
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(
@@ -165,9 +175,9 @@ class HomeScreen extends ConsumerWidget {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          const Icon(
-                            Icons.replay_rounded,
-                            color: acid,
+                          const _CoreIcon(
+                            asset: 'assets/icons/core/review.svg',
+                            size: 24,
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -175,14 +185,16 @@ class HomeScreen extends ConsumerWidget {
                               '${s.dueReviews.length} '
                               '${s.dueReviews.length == 1 ? 'problem is' : 'problems are'} '
                               'ready for a second pass.',
-                              style: const TextStyle(
+                              style: humanTextStyle(
+                                fontSize: 13,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
                           ),
                           const SizedBox(width: 8),
-                          const Icon(
-                            Icons.chevron_right,
+                          const _CoreIcon(
+                            asset: 'assets/icons/core/arrow_forward.svg',
+                            size: 22,
                           ),
                         ],
                       ),
@@ -194,6 +206,7 @@ class HomeScreen extends ConsumerWidget {
               // -----------------------------------------------------------------
               // FOOTER
               // -----------------------------------------------------------------
+
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(
                   20,
@@ -204,9 +217,10 @@ class HomeScreen extends ConsumerWidget {
                 sliver: SliverToBoxAdapter(
                   child: Text(
                     'Core loop: solve → complete → reward → one more.',
-                    style: const TextStyle(
+                    style: humanTextStyle(
                       color: muted,
                       fontSize: 12,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -215,6 +229,30 @@ class HomeScreen extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// =============================================================================
+// SVG CORE ICON
+// =============================================================================
+
+class _CoreIcon extends StatelessWidget {
+  final String asset;
+  final double size;
+
+  const _CoreIcon({
+    required this.asset,
+    this.size = 24,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SvgPicture.asset(
+      asset,
+      width: size,
+      height: size,
+      fit: BoxFit.contain,
     );
   }
 }
@@ -252,11 +290,11 @@ class _Header extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'Ready to grind?',
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
+                style: humanTextStyle(
                   fontSize: 23,
                   fontWeight: FontWeight.w900,
                 ),
@@ -274,15 +312,7 @@ class _Header extends StatelessWidget {
                 children: [
                   _BrandLabel(),
                   SizedBox(height: 18),
-                  Text(
-                    'Ready to grind?',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
+                  _ReadyToGrindText(),
                 ],
               ),
             ),
@@ -293,6 +323,23 @@ class _Header extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _ReadyToGrindText extends StatelessWidget {
+  const _ReadyToGrindText();
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      'Ready to grind?',
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: humanTextStyle(
+        fontSize: 24,
+        fontWeight: FontWeight.w900,
+      ),
     );
   }
 }
@@ -315,6 +362,10 @@ class _BrandLabel extends StatelessWidget {
     );
   }
 }
+
+// =============================================================================
+// STREAK BADGE
+// =============================================================================
 
 class _StreakBadge extends StatelessWidget {
   final int streak;
@@ -343,16 +394,14 @@ class _StreakBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            '🔥',
-            style: TextStyle(
-              fontSize: 16,
-            ),
+          const _CoreIcon(
+            asset: 'assets/icons/core/streak.svg',
+            size: 20,
           ),
           const SizedBox(width: 6),
           Text(
             '$streak',
-            style: const TextStyle(
+            style: technicalTextStyle(
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -456,7 +505,7 @@ class _ProgressHero extends StatelessWidget {
                       'LEVEL ${state.level}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: technicalTextStyle(
                         color: muted,
                         fontSize: 10,
                         fontWeight: FontWeight.w800,
@@ -472,7 +521,7 @@ class _ProgressHero extends StatelessWidget {
                       textAlign: TextAlign.right,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: technicalTextStyle(
                         color: muted,
                         fontSize: 10,
                         fontWeight: FontWeight.w800,
@@ -537,16 +586,16 @@ class _ProgressCircle extends StatelessWidget {
                 fit: BoxFit.scaleDown,
                 child: Text(
                   '${(percentage * 100).round()}%',
-                  style: TextStyle(
+                  style: technicalTextStyle(
                     fontSize: size < 110 ? 23 : 26,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
               ),
               const SizedBox(height: 2),
-              const Text(
+              Text(
                 'COMPLETE',
-                style: TextStyle(
+                style: technicalTextStyle(
                   color: muted,
                   fontSize: 9,
                   fontWeight: FontWeight.w800,
@@ -582,19 +631,21 @@ class _ProgressInfo extends StatelessWidget {
           alignment: Alignment.centerLeft,
           child: Text(
             '${state.completed} / ${state.problems.length}',
-            style: const TextStyle(
+            style: technicalTextStyle(
               fontSize: 28,
               fontWeight: FontWeight.w900,
             ),
           ),
         ),
         const SizedBox(height: 4),
-        const Text(
+        Text(
           'problems cleared',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(
+          style: humanTextStyle(
             color: muted,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
           ),
         ),
         const SizedBox(height: 18),
@@ -604,14 +655,14 @@ class _ProgressInfo extends StatelessWidget {
           children: [
             Text(
               'LVL ${state.level}',
-              style: const TextStyle(
+              style: technicalTextStyle(
                 color: acid,
                 fontWeight: FontWeight.w900,
               ),
             ),
             Text(
               '${state.xp} XP',
-              style: const TextStyle(
+              style: technicalTextStyle(
                 color: muted,
                 fontSize: 12,
               ),
@@ -649,7 +700,7 @@ class _NextProblemContent extends StatelessWidget {
           ),
           child: Text(
             '${problem.order}'.padLeft(2, '0'),
-            style: const TextStyle(
+            style: technicalTextStyle(
               color: acid,
               fontWeight: FontWeight.w900,
             ),
@@ -683,7 +734,7 @@ class _NextProblemContent extends StatelessWidget {
                       problem.topic,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: humanTextStyle(
                         color: muted,
                         fontSize: 12,
                       ),
@@ -698,9 +749,9 @@ class _NextProblemContent extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 10),
-        const Icon(
-          Icons.arrow_forward_rounded,
-          color: acid,
+        const _CoreIcon(
+          asset: 'assets/icons/core/arrow_forward.svg',
+          size: 26,
         ),
       ],
     );
@@ -724,7 +775,7 @@ class _QuickStats extends StatelessWidget {
       children: [
         Expanded(
           child: _Stat(
-            icon: '🔥',
+            icon: 'assets/icons/core/streak.svg',
             value: '${state.currentStreak}',
             label: 'streak',
           ),
@@ -732,7 +783,7 @@ class _QuickStats extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(
           child: _Stat(
-            icon: '🎯',
+            icon: 'assets/icons/core/target.svg',
             value: '${state.todayCompleted}/${state.dailyGoal}',
             label: 'today',
           ),
@@ -740,7 +791,7 @@ class _QuickStats extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(
           child: _Stat(
-            icon: '⚡',
+            icon: 'assets/icons/core/xp.svg',
             value: '${state.remaining}',
             label: 'left',
           ),
@@ -768,9 +819,13 @@ class _Stat extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            icon,
-            maxLines: 1,
+          SizedBox(
+            width: 24,
+            height: 24,
+            child: SvgPicture.asset(
+              icon,
+              fit: BoxFit.contain,
+            ),
           ),
           const SizedBox(height: 7),
           FittedBox(
@@ -779,7 +834,7 @@ class _Stat extends StatelessWidget {
             child: Text(
               value,
               maxLines: 1,
-              style: const TextStyle(
+              style: technicalTextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.w900,
               ),
@@ -790,9 +845,10 @@ class _Stat extends StatelessWidget {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: humanTextStyle(
               color: muted,
               fontSize: 11,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],

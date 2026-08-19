@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/problem.dart';
@@ -71,16 +72,34 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
         final progress =
             state.progress[widget.problem.id] ?? const ProblemProgress();
 
+        final isFlagged = progress.reviewDueAt != null;
+
         return Scaffold(
           appBar: AppBar(
+            leading: IconButton(
+              tooltip: 'Back',
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              icon: Transform.rotate(
+                angle: 3.14159265359,
+                child: SvgPicture.asset(
+                  'assets/icons/core/arrow_forward.svg',
+                  width: 25,
+                  height: 25,
+                ),
+              ),
+            ),
             actions: [
               IconButton(
+                tooltip: 'Open problem',
                 onPressed: () => launchUrl(
                   Uri.parse(widget.problem.externalUrl),
                   mode: LaunchMode.externalApplication,
                 ),
-                icon: const Icon(Icons.open_in_new),
-                tooltip: 'Open problem',
+                icon: const Icon(
+                  Icons.open_in_new,
+                ),
               ),
             ],
           ),
@@ -92,16 +111,22 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
               34,
             ),
             children: [
+              // -----------------------------------------------------------------
+              // PROBLEM HEADER
+              // -----------------------------------------------------------------
+
               Text(
                 'PROBLEM ${widget.problem.order.toString().padLeft(2, '0')}',
-                style: const TextStyle(
+                style: technicalTextStyle(
                   color: acid,
                   fontSize: 11,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 1.8,
                 ),
               ),
+
               const SizedBox(height: 10),
+
               Text(
                 widget.problem.title,
                 style: const TextStyle(
@@ -110,7 +135,9 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
                   height: 1.05,
                 ),
               ),
+
               const SizedBox(height: 14),
+
               Row(
                 children: [
                   DifficultyPill(
@@ -120,15 +147,22 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
                   Expanded(
                     child: Text(
                       widget.problem.topic,
-                      style: const TextStyle(
+                      style: humanTextStyle(
                         color: muted,
                         fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
                 ],
               ),
+
               const SizedBox(height: 24),
+
+              // -----------------------------------------------------------------
+              // COMPLETION CARD
+              // -----------------------------------------------------------------
+
               GlowCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,26 +173,40 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
                           duration: const Duration(
                             milliseconds: 250,
                           ),
-                          child: Icon(
-                            progress.completed
-                                ? Icons.check_circle
-                                : Icons.radio_button_unchecked,
-                            key: ValueKey(progress.completed),
-                            color: progress.completed ? acid : muted,
-                          ),
+                          child: progress.completed
+                              ? SvgPicture.asset(
+                                  'assets/icons/core/check.svg',
+                                  key: const ValueKey('completed'),
+                                  width: 27,
+                                  height: 27,
+                                )
+                              : Container(
+                                  key: const ValueKey('incomplete'),
+                                  width: 27,
+                                  height: 27,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: muted,
+                                      width: 2,
+                                    ),
+                                  ),
+                                ),
                         ),
                         const SizedBox(width: 10),
                         Text(
                           progress.completed ? 'Completed' : 'Not completed',
-                          style: const TextStyle(
+                          style: humanTextStyle(
+                            fontSize: 15,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
                         const Spacer(),
                         Text(
                           '+$_xp XP',
-                          style: const TextStyle(
+                          style: technicalTextStyle(
                             color: acid,
+                            fontSize: 15,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
@@ -172,14 +220,22 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
                         onPressed: () => _toggleCompletion(
                           progress.completed,
                         ),
-                        icon: Icon(
-                          progress.completed ? Icons.undo : Icons.check,
+                        icon: SvgPicture.asset(
+                          'assets/icons/core/check.svg',
+                          width: 20,
+                          height: 20,
+                          colorFilter: const ColorFilter.mode(
+                            ink,
+                            BlendMode.srcIn,
+                          ),
                         ),
                         label: Text(
                           progress.completed
                               ? 'Mark incomplete'
                               : 'Mark as completed',
-                          style: const TextStyle(
+                          style: humanTextStyle(
+                            color: ink,
+                            fontSize: 14,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
@@ -188,71 +244,87 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
                   ],
                 ),
               ),
+
               const SizedBox(height: 14),
+
+              // -----------------------------------------------------------------
+              // REVIEW BUTTON
+              // -----------------------------------------------------------------
+
               OutlinedButton.icon(
-                onPressed: () async {
-                  await ref
-                      .read(appControllerProvider.notifier)
-                      .flagForReview(widget.problem);
-
-                  if (!mounted) {
-                    return;
-                  }
-
-                  ScaffoldMessenger.of(this.context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Review queued for 14 days.',
-                      ),
-                    ),
-                  );
-                },
-                icon: Icon(
-                  progress.reviewDueAt != null
-                      ? Icons.bookmark
-                      : Icons.bookmark_border,
-                  color: acid,
+                onPressed: () => _toggleReview(isFlagged),
+                icon: SvgPicture.asset(
+                  isFlagged
+                      ? 'assets/icons/core/bookmark.svg'
+                      : 'assets/icons/core/review.svg',
+                  width: 21,
+                  height: 21,
                 ),
                 label: Text(
-                  progress.reviewDueAt != null
-                      ? 'Flagged for review'
-                      : 'Flag for review',
+                  isFlagged ? 'Flagged for review' : 'Flag for review',
+                  style: humanTextStyle(
+                    color: acid,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
+
               const SizedBox(height: 26),
+
+              // -----------------------------------------------------------------
+              // NOTES
+              // -----------------------------------------------------------------
+
               const SectionTitle(
                 title: 'Your notes',
               ),
+
               const SizedBox(height: 10),
+
               TextField(
                 controller: notes,
                 maxLines: 9,
                 onChanged: (value) {
-                  ref.read(appControllerProvider.notifier).saveNotes(
+                  ref
+                      .read(
+                        appControllerProvider.notifier,
+                      )
+                      .saveNotes(
                         widget.problem,
                         value,
                       );
                 },
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText:
                       'Approach, gotchas, complexity, things to revisit...',
+                  hintStyle: humanTextStyle(
+                    color: muted,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
+
               const SizedBox(height: 20),
+
               if (progress.completedAt != null)
                 Text(
                   'Completed ${_relative(progress.completedAt!)}',
-                  style: const TextStyle(
+                  style: humanTextStyle(
                     color: muted,
                     fontSize: 12,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
+
               if (progress.reviewDueAt != null)
                 Text(
                   'Review due ${_relative(progress.reviewDueAt!)}',
-                  style: const TextStyle(
+                  style: technicalTextStyle(
                     color: acid,
-                    fontSize: 12,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
             ],
@@ -262,20 +334,73 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
     );
   }
 
-  Future<void> _toggleCompletion(bool wasCompleted) async {
+  // ---------------------------------------------------------------------------
+  // REVIEW TOGGLE
+  // ---------------------------------------------------------------------------
+
+  Future<void> _toggleReview(
+    bool isCurrentlyFlagged,
+  ) async {
     final controller = ref.read(appControllerProvider.notifier);
 
-    await controller.toggleComplete(widget.problem);
+    if (isCurrentlyFlagged) {
+      await controller.clearReview(
+        widget.problem,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Removed from review.',
+          ),
+        ),
+      );
+    } else {
+      await controller.flagForReview(
+        widget.problem,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Review queued for 14 days.',
+          ),
+        ),
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // COMPLETION
+  // ---------------------------------------------------------------------------
+
+  Future<void> _toggleCompletion(
+    bool wasCompleted,
+  ) async {
+    final controller = ref.read(appControllerProvider.notifier);
+
+    await controller.toggleComplete(
+      widget.problem,
+    );
 
     if (!mounted) {
       return;
     }
 
-    // Only reward the transition:
+    // Only reward:
     //
     // incomplete → completed
     //
-    // Completing → incomplete should not show XP reward.
+    // Completing → incomplete does not show XP reward.
+
     if (!wasCompleted) {
       final updatedState = ref.read(appControllerProvider).value;
 
@@ -283,11 +408,19 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
         return;
       }
 
-      _showCompletionReward(updatedState);
+      _showCompletionReward(
+        updatedState,
+      );
     }
   }
 
-  void _showCompletionReward(AppState state) {
+  // ---------------------------------------------------------------------------
+  // COMPLETION REWARD
+  // ---------------------------------------------------------------------------
+
+  void _showCompletionReward(
+    AppState state,
+  ) {
     final streak = state.currentStreak;
 
     final compliment = _getCompliment(
@@ -300,10 +433,10 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
       context: context,
       barrierDismissible: true,
       barrierLabel: 'Completion reward',
-      barrierColor: Colors.black.withValues(alpha: 0.78),
-      transitionDuration: const Duration(
-        milliseconds: 350,
+      barrierColor: Colors.black.withValues(
+        alpha: 0.78,
       ),
+      transitionDuration: const Duration(milliseconds: 350),
       pageBuilder: (
         dialogContext,
         animation,
@@ -322,8 +455,13 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
                   totalCompleted: state.completed,
                   compliment: compliment,
                   onNext: () {
-                    Navigator.pop(dialogContext);
-                    _openNextProblem(state);
+                    Navigator.pop(
+                      dialogContext,
+                    );
+
+                    _openNextProblem(
+                      state,
+                    );
                   },
                 ),
               ),
@@ -355,6 +493,10 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
       },
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // COMPLIMENTS
+  // ---------------------------------------------------------------------------
 
   String _getCompliment({
     required String difficulty,
@@ -400,7 +542,13 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
     return compliments[completed % compliments.length];
   }
 
-  void _openNextProblem(AppState state) {
+  // ---------------------------------------------------------------------------
+  // NEXT PROBLEM
+  // ---------------------------------------------------------------------------
+
+  void _openNextProblem(
+    AppState state,
+  ) {
     final next = state.nextProblem;
 
     if (next == null) {
@@ -411,6 +559,7 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
           ),
         ),
       );
+
       return;
     }
 
@@ -424,7 +573,13 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
     );
   }
 
-  String _relative(DateTime d) {
+  // ---------------------------------------------------------------------------
+  // RELATIVE DATE
+  // ---------------------------------------------------------------------------
+
+  String _relative(
+    DateTime d,
+  ) {
     final diff = DateTime.now().difference(d);
 
     if (diff.inDays == 0) {
@@ -442,6 +597,10 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
     return '${diff.inDays} days ago';
   }
 }
+
+// =============================================================================
+// COMPLETION REWARD CARD
+// =============================================================================
 
 class _CompletionRewardCard extends StatefulWidget {
   final Problem problem;
@@ -510,23 +669,27 @@ class _CompletionRewardCardState extends State<_CompletionRewardCard>
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: acid.withValues(alpha: 0.12),
+                    color: acid.withValues(
+                      alpha: 0.12,
+                    ),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: acid.withValues(alpha: 0.25),
+                      color: acid.withValues(
+                        alpha: 0.25,
+                      ),
                     ),
                   ),
-                  child: const Icon(
-                    Icons.check_rounded,
-                    color: acid,
-                    size: 28,
+                  child: SvgPicture.asset(
+                    'assets/icons/core/check.svg',
+                    width: 28,
+                    height: 28,
                   ),
                 ),
                 const SizedBox(width: 14),
-                const Expanded(
+                Expanded(
                   child: Text(
                     'COMPLETED',
-                    style: TextStyle(
+                    style: technicalTextStyle(
                       color: acid,
                       fontSize: 12,
                       fontWeight: FontWeight.w900,
@@ -539,7 +702,7 @@ class _CompletionRewardCardState extends State<_CompletionRewardCard>
             const SizedBox(height: 22),
             Text(
               '+${widget.xp} XP',
-              style: const TextStyle(
+              style: technicalTextStyle(
                 fontSize: 38,
                 fontWeight: FontWeight.w900,
                 height: 1,
@@ -548,9 +711,10 @@ class _CompletionRewardCardState extends State<_CompletionRewardCard>
             const SizedBox(height: 8),
             Text(
               widget.problem.title,
-              style: const TextStyle(
+              style: humanTextStyle(
                 color: muted,
                 fontSize: 13,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 20),
@@ -568,23 +732,25 @@ class _CompletionRewardCardState extends State<_CompletionRewardCard>
               ),
               child: Row(
                 children: [
-                  const Text(
-                    '🔥',
-                    style: TextStyle(fontSize: 18),
+                  SvgPicture.asset(
+                    'assets/icons/core/streak.svg',
+                    width: 21,
+                    height: 21,
                   ),
                   const SizedBox(width: 8),
                   Text(
                     '${widget.streak} day streak',
-                    style: const TextStyle(
+                    style: humanTextStyle(
+                      fontSize: 13,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                   const Spacer(),
                   Text(
                     '${widget.totalCompleted}/150',
-                    style: const TextStyle(
+                    style: technicalTextStyle(
                       color: muted,
-                      fontSize: 12,
+                      fontSize: 11,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -594,7 +760,7 @@ class _CompletionRewardCardState extends State<_CompletionRewardCard>
             const SizedBox(height: 18),
             Text(
               widget.compliment,
-              style: const TextStyle(
+              style: humanTextStyle(
                 fontSize: 16,
                 height: 1.4,
                 fontWeight: FontWeight.w700,
@@ -608,17 +774,24 @@ class _CompletionRewardCardState extends State<_CompletionRewardCard>
                 onPressed: widget.onNext,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
+                  children: [
                     Text(
                       'Next Problem',
-                      style: TextStyle(
+                      style: humanTextStyle(
+                        color: ink,
+                        fontSize: 14,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
-                    SizedBox(width: 8),
-                    Icon(
-                      Icons.arrow_forward_rounded,
-                      size: 19,
+                    const SizedBox(width: 8),
+                    SvgPicture.asset(
+                      'assets/icons/core/arrow_forward.svg',
+                      width: 19,
+                      height: 19,
+                      colorFilter: const ColorFilter.mode(
+                        ink,
+                        BlendMode.srcIn,
+                      ),
                     ),
                   ],
                 ),

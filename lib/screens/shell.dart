@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/mp_icon.dart';
 import 'home_screen.dart';
 import 'problems_screen.dart';
 import 'progress_screen.dart';
@@ -40,28 +41,63 @@ class _ShellState extends State<Shell> {
         indicatorColor: const Color(0x1FB7FF4A),
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
+            icon: MpIcon(
+              'core/home',
+              size: 25,
+            ),
+            selectedIcon: MpIcon(
+              'core/home',
+              size: 25,
+              color: Color(0xFFB7FF4A),
+            ),
             label: 'Home',
           ),
           NavigationDestination(
-            icon: Icon(Icons.code_outlined),
-            selectedIcon: Icon(Icons.code),
+            icon: MpIcon(
+              'core/code',
+              size: 25,
+            ),
+            selectedIcon: MpIcon(
+              'core/code',
+              size: 25,
+              color: Color(0xFFB7FF4A),
+            ),
             label: 'Problems',
           ),
           NavigationDestination(
-            icon: Icon(Icons.insights_outlined),
-            selectedIcon: Icon(Icons.insights),
+            icon: MpIcon(
+              'core/insights',
+              size: 25,
+            ),
+            selectedIcon: MpIcon(
+              'core/insights',
+              size: 25,
+              color: Color(0xFFB7FF4A),
+            ),
             label: 'Progress',
           ),
           NavigationDestination(
-            icon: Icon(Icons.emoji_events_outlined),
-            selectedIcon: Icon(Icons.emoji_events),
+            icon: MpIcon(
+              'core/achievements',
+              size: 25,
+            ),
+            selectedIcon: MpIcon(
+              'core/achievements',
+              size: 25,
+              color: Color(0xFFB7FF4A),
+            ),
             label: 'Awards',
           ),
           NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
+            icon: MpIcon(
+              'core/profile',
+              size: 25,
+            ),
+            selectedIcon: MpIcon(
+              'core/profile',
+              size: 25,
+              color: Color(0xFFB7FF4A),
+            ),
             label: 'Profile',
           ),
         ],

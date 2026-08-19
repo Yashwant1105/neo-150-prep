@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../providers/app_controller.dart';
 import '../widgets/ui.dart';
@@ -36,35 +37,50 @@ class ProgressScreen extends ConsumerWidget {
             30,
           ),
           children: [
+            // ===============================================================
+            // CLEARED + XP
+            // ===============================================================
+
             Row(
               children: [
                 Expanded(
                   child: GlowCard(
                     child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'CLEARED',
-                          style: TextStyle(
-                            color: muted,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.2,
-                          ),
+                        Row(
+                          children: [
+                            SvgPicture.asset(
+                              'assets/icons/core/progress.svg',
+                              width: 19,
+                              height: 19,
+                            ),
+                            const SizedBox(width: 7),
+                            const Text(
+                              'CLEARED',
+                              style: TextStyle(
+                                color: muted,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 8),
                         Text(
                           '${s.completed}',
-                          style: const TextStyle(
+                          style: technicalTextStyle(
                             fontSize: 28,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
-                        const Text(
+                        Text(
                           '/ 150',
-                          style: TextStyle(
+                          style: technicalTextStyle(
                             color: muted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ],
@@ -75,30 +91,41 @@ class ProgressScreen extends ConsumerWidget {
                 Expanded(
                   child: GlowCard(
                     child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'XP',
-                          style: TextStyle(
-                            color: muted,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.2,
-                          ),
+                        Row(
+                          children: [
+                            SvgPicture.asset(
+                              'assets/icons/core/xp.svg',
+                              width: 19,
+                              height: 19,
+                            ),
+                            const SizedBox(width: 7),
+                            const Text(
+                              'XP',
+                              style: TextStyle(
+                                color: muted,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 8),
                         Text(
                           '${s.xp}',
-                          style: const TextStyle(
+                          style: technicalTextStyle(
                             fontSize: 28,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
                         Text(
                           'Level ${s.level}',
-                          style: const TextStyle(
+                          style: technicalTextStyle(
                             color: acid,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                       ],
@@ -110,15 +137,25 @@ class ProgressScreen extends ConsumerWidget {
 
             const SizedBox(height: 24),
 
+            // ===============================================================
+            // STREAK
+            // ===============================================================
+
             const SectionTitle(
               title: 'Streak',
             ),
 
             const SizedBox(height: 10),
 
-            _StreakCard(state: s),
+            _StreakCard(
+              state: s,
+            ),
 
             const SizedBox(height: 24),
+
+            // ===============================================================
+            // DIFFICULTY
+            // ===============================================================
 
             const SectionTitle(
               title: 'Difficulty',
@@ -136,73 +173,44 @@ class ProgressScreen extends ConsumerWidget {
 
             const SizedBox(height: 24),
 
+            // ===============================================================
+            // TOPICS
+            // ===============================================================
+
             const SectionTitle(
               title: 'Topics',
             ),
 
             const SizedBox(height: 10),
 
-            ...s.problems
-                .map((p) => p.topic)
-                .toSet()
-                .map((topic) {
+            ...s.problems.map((p) => p.topic).toSet().map((topic) {
               final all = s.problems
-                  .where((p) => p.topic == topic)
+                  .where(
+                    (p) => p.topic == topic,
+                  )
                   .toList();
 
               final done = all
                   .where(
-                    (p) =>
-                        s.progress[p.id]?.completed ??
-                        false,
+                    (p) => s.progress[p.id]?.completed ?? false,
                   )
                   .length;
 
-              final double value =
-                  all.isEmpty ? 0.0 : done / all.length;
+              final double value = all.isEmpty ? 0.0 : done / all.length;
 
-              return Padding(
-                padding:
-                    const EdgeInsets.only(bottom: 13),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            topic,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          '$done/${all.length}',
-                          style: const TextStyle(
-                            color: muted,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    ClipRRect(
-                      borderRadius:
-                          BorderRadius.circular(99),
-                      child: LinearProgressIndicator(
-                        value: value,
-                        minHeight: 6,
-                        backgroundColor: line,
-                        color: acid,
-                      ),
-                    ),
-                  ],
-                ),
+              return _topicRow(
+                topic: topic,
+                done: done,
+                total: all.length,
+                value: value,
               );
             }),
 
             const SizedBox(height: 18),
+
+            // ===============================================================
+            // ACTIVITY
+            // ===============================================================
 
             const SectionTitle(
               title: 'Activity',
@@ -210,35 +218,41 @@ class ProgressScreen extends ConsumerWidget {
 
             const SizedBox(height: 10),
 
-            _Heatmap(state: s),
+            _Heatmap(
+              state: s,
+            ),
           ],
         ),
       ),
     );
   }
 
+  // =========================================================================
+  // DIFFICULTY ROW
+  // =========================================================================
+
   Widget _difficultyRow(
     AppState s,
     String d,
   ) {
     final all = s.problems
-        .where((p) => p.difficulty == d)
+        .where(
+          (p) => p.difficulty == d,
+        )
         .length;
 
     final done = s.problems
         .where(
-          (p) =>
-              p.difficulty == d &&
-              s.progress[p.id]?.completed == true,
+          (p) => p.difficulty == d && s.progress[p.id]?.completed == true,
         )
         .length;
 
-    final double value =
-        all == 0 ? 0.0 : done / all;
+    final double value = all == 0 ? 0.0 : done / all;
 
     return Padding(
-      padding:
-          const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.only(
+        bottom: 14,
+      ),
       child: GlowCard(
         padding: const EdgeInsets.all(14),
         child: Row(
@@ -252,8 +266,7 @@ class ProgressScreen extends ConsumerWidget {
             const SizedBox(width: 12),
             Expanded(
               child: ClipRRect(
-                borderRadius:
-                    BorderRadius.circular(99),
+                borderRadius: BorderRadius.circular(99),
                 child: LinearProgressIndicator(
                   value: value,
                   minHeight: 7,
@@ -265,9 +278,10 @@ class ProgressScreen extends ConsumerWidget {
             const SizedBox(width: 12),
             Text(
               '$done/$all',
-              style: const TextStyle(
+              style: technicalTextStyle(
                 color: muted,
-                fontSize: 12,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ],
@@ -275,7 +289,131 @@ class ProgressScreen extends ConsumerWidget {
       ),
     );
   }
+
+  // =========================================================================
+  // TOPIC ROW
+  // =========================================================================
+
+  Widget _topicRow({
+    required String topic,
+    required int done,
+    required int total,
+    required double value,
+  }) {
+    final icon = _topicIcon(topic);
+
+    return Padding(
+      padding: const EdgeInsets.only(
+        bottom: 13,
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              if (icon != null) ...[
+                SvgPicture.asset(
+                  icon,
+                  width: 20,
+                  height: 20,
+                ),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: Text(
+                  topic,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Text(
+                '$done/$total',
+                style: technicalTextStyle(
+                  color: muted,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: LinearProgressIndicator(
+              value: value,
+              minHeight: 6,
+              backgroundColor: line,
+              color: acid,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =========================================================================
+  // TOPIC → SVG
+  // =========================================================================
+
+  String? _topicIcon(String topic) {
+    switch (topic) {
+      case 'Arrays & Hashing':
+        return 'assets/icons/topics/array.svg';
+
+      case 'Two Pointers':
+        return 'assets/icons/topics/two_pointers.svg';
+
+      case 'Sliding Window':
+        return 'assets/icons/topics/sliding_window.svg';
+
+      case 'Stack':
+        return 'assets/icons/topics/stack.svg';
+
+      case 'Binary Search':
+        return 'assets/icons/topics/binary_search.svg';
+
+      case 'Trees':
+        return 'assets/icons/topics/tree.svg';
+
+      case 'Heap / Priority Queue':
+        return 'assets/icons/topics/queue.svg';
+
+      case 'Backtracking':
+        return 'assets/icons/topics/backtracking.svg';
+
+      case 'Graphs':
+        return 'assets/icons/topics/graph.svg';
+
+      case 'Advanced Graphs':
+        return 'assets/icons/topics/graph.svg';
+
+      case '1-D Dynamic Programming':
+        return 'assets/icons/topics/dp.svg';
+
+      case '2-D Dynamic Programming':
+        return 'assets/icons/topics/dp.svg';
+
+      case 'Greedy':
+        return 'assets/icons/topics/greedy.svg';
+
+      // No dedicated SVG currently exists for these.
+      case 'Linked List':
+      case 'Tries':
+      case 'Intervals':
+      case 'Math & Geometry':
+      case 'Bit Manipulation':
+        return null;
+
+      default:
+        return null;
+    }
+  }
 }
+
+// =============================================================================
+// STREAK CARD
+// =============================================================================
 
 class _StreakCard extends StatelessWidget {
   final AppState state;
@@ -358,16 +496,13 @@ class _StreakCard extends StatelessWidget {
 
     final range = next - previous;
 
-    final progress = range == 0
-        ? 0.0
-        : ((streak - previous) / range)
-            .clamp(0.0, 1.0);
+    final progress =
+        range == 0 ? 0.0 : ((streak - previous) / range).clamp(0.0, 1.0);
 
     return GlowCard(
       padding: const EdgeInsets.all(18),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
@@ -379,80 +514,71 @@ class _StreakCard extends StatelessWidget {
                   color: acid.withValues(
                     alpha: 0.12,
                   ),
-                  borderRadius:
-                      BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: acid.withValues(
                       alpha: 0.25,
                     ),
                   ),
                 ),
-                child: const Text(
-                  '🔥',
-                  style: TextStyle(
-                    fontSize: 27,
-                  ),
+                child: SvgPicture.asset(
+                  'assets/icons/core/streak.svg',
+                  width: 30,
+                  height: 30,
                 ),
               ),
-
               const SizedBox(width: 14),
-
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       '$streak DAY STREAK',
-                      style: const TextStyle(
-                        fontSize: 20,
+                      style: technicalTextStyle(
+                        fontSize: 19,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       'Best: $best days',
-                      style: const TextStyle(
+                      style: technicalTextStyle(
                         color: muted,
-                        fontSize: 12,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
                 ),
               ),
-
               if (today >= goal)
-                const Icon(
-                  Icons.check_circle,
-                  color: acid,
+                SvgPicture.asset(
+                  'assets/icons/core/check.svg',
+                  width: 22,
+                  height: 22,
                 ),
             ],
           ),
-
           const SizedBox(height: 18),
-
           Text(
             _message(
               streak,
               today,
               goal,
             ),
-            style: const TextStyle(
+            style: humanTextStyle(
               fontSize: 14,
               height: 1.4,
               fontWeight: FontWeight.w700,
             ),
           ),
-
           const SizedBox(height: 18),
-
           Row(
-            mainAxisAlignment:
-                MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              const Text(
                 'NEXT MILESTONE',
-                style: const TextStyle(
+                style: TextStyle(
                   color: muted,
                   fontSize: 10,
                   fontWeight: FontWeight.w900,
@@ -461,7 +587,7 @@ class _StreakCard extends StatelessWidget {
               ),
               Text(
                 '$next DAYS',
-                style: const TextStyle(
+                style: technicalTextStyle(
                   color: acid,
                   fontSize: 10,
                   fontWeight: FontWeight.w900,
@@ -469,12 +595,9 @@ class _StreakCard extends StatelessWidget {
               ),
             ],
           ),
-
           const SizedBox(height: 8),
-
           ClipRRect(
-            borderRadius:
-                BorderRadius.circular(99),
+            borderRadius: BorderRadius.circular(99),
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 7,
@@ -482,29 +605,28 @@ class _StreakCard extends StatelessWidget {
               color: acid,
             ),
           ),
-
           const SizedBox(height: 12),
-
           Row(
             children: [
-              const Icon(
-                Icons.today_rounded,
-                size: 15,
-                color: muted,
+              SvgPicture.asset(
+                'assets/icons/core/progress.svg',
+                width: 16,
+                height: 16,
               ),
               const SizedBox(width: 6),
               Text(
                 'Today: $today / $goal',
-                style: const TextStyle(
+                style: technicalTextStyle(
                   color: muted,
-                  fontSize: 12,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
               const Spacer(),
               if (today < goal)
                 Text(
                   '${goal - today} more to protect it',
-                  style: const TextStyle(
+                  style: humanTextStyle(
                     color: acid,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
@@ -526,6 +648,10 @@ class _StreakCard extends StatelessWidget {
     );
   }
 }
+
+// =============================================================================
+// ACTIVITY HEATMAP
+// =============================================================================
 
 class _Heatmap extends StatelessWidget {
   final AppState state;
@@ -553,18 +679,18 @@ class _Heatmap extends StatelessWidget {
         children: List.generate(
           70,
           (i) {
-            final day =
-                start.add(Duration(days: i));
+            final day = start.add(Duration(days: i));
 
-            final count =
-                state.progress.values.where((p) {
-              final d = p.completedAt;
+            final count = state.progress.values.where(
+              (p) {
+                final d = p.completedAt;
 
-              return d != null &&
-                  d.year == day.year &&
-                  d.month == day.month &&
-                  d.day == day.day;
-            }).length;
+                return d != null &&
+                    d.year == day.year &&
+                    d.month == day.month &&
+                    d.day == day.day;
+              },
+            ).length;
 
             return Container(
               width: 12,
@@ -573,11 +699,9 @@ class _Heatmap extends StatelessWidget {
                 color: count == 0
                     ? line
                     : acid.withValues(
-                        alpha:
-                            count >= 3 ? .95 : .35,
+                        alpha: count >= 3 ? .95 : .35,
                       ),
-                borderRadius:
-                    BorderRadius.circular(3),
+                borderRadius: BorderRadius.circular(3),
               ),
             );
           },
