@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'config/app_config.dart';
 import 'providers/app_controller.dart';
 import 'screens/auth_screen.dart';
 import 'screens/shell.dart';
@@ -11,18 +12,19 @@ import 'widgets/app_theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
-  const supabasePublishableKey =
-      String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
-
-  if (supabaseUrl.isNotEmpty && supabasePublishableKey.isNotEmpty) {
+  if (AppConfig.supabaseUrl.isNotEmpty &&
+      AppConfig.supabasePublishableKey.isNotEmpty) {
     await Supabase.initialize(
-      url: supabaseUrl,
-      publishableKey: supabasePublishableKey,
+      url: AppConfig.supabaseUrl,
+      publishableKey: AppConfig.supabasePublishableKey,
     );
   }
 
-  runApp(const ProviderScope(child: MinsPrepApp()));
+  runApp(
+    const ProviderScope(
+      child: MinsPrepApp(),
+    ),
+  );
 }
 
 class MinsPrepApp extends StatelessWidget {

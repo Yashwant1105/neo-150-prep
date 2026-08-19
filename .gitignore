@@ -7,3 +7,5 @@ build/
 .vscode/
 *.iml
 .env
+# Local app configuration
+lib/config/app_config.dart

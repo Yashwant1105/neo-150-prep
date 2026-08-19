@@ -630,4 +630,3 @@ class _CompletionRewardCardState extends State<_CompletionRewardCard>
     );
   }
 }
-s
