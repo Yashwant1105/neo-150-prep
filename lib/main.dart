@@ -18,6 +18,13 @@ Future<void> main() async {
       url: AppConfig.supabaseUrl,
       publishableKey: AppConfig.supabasePublishableKey,
     );
+
+    debugPrint('SUPABASE INITIALIZED');
+    debugPrint(
+      'INITIAL SESSION: ${Supabase.instance.client.auth.currentSession?.user.id}',
+    );
+  } else {
+    debugPrint('SUPABASE NOT CONFIGURED');
   }
 
   runApp(
@@ -49,36 +56,49 @@ class AuthGate extends ConsumerStatefulWidget {
 }
 
 class _AuthGateState extends ConsumerState<AuthGate> {
-  String? _lastUserId;
+  Session? _session;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Get the session that may already exist when the app starts.
+    _session = SupabaseService.currentSession;
+
+    // Listen for login/logout changes.
+    SupabaseService.client.auth.onAuthStateChange.listen((data) {
+      final event = data.event;
+      final session = data.session;
+
+      debugPrint('AUTH EVENT: $event');
+      debugPrint('AUTH SESSION: ${session?.user.id}');
+
+      if (!mounted) return;
+
+      setState(() {
+        _session = session;
+      });
+
+      // Refresh app data after login.
+      if (session != null) {
+        ref.invalidate(appControllerProvider);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    // Supabase isn't configured.
     if (!SupabaseService.isConfigured) {
       return const Shell();
     }
 
-    return StreamBuilder<AuthState>(
-      stream: SupabaseService.client.auth.onAuthStateChange,
-      builder: (context, snapshot) {
-        final session = SupabaseService.currentSession;
-        final userId = session?.user.id;
+    // User is logged in.
+    if (_session != null) {
+      return const Shell();
+    }
 
-        if (userId != _lastUserId) {
-          _lastUserId = userId;
-
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              ref.invalidate(appControllerProvider);
-            }
-          });
-        }
-
-        if (session == null) {
-          return const AuthScreen();
-        }
-
-        return const Shell();
-      },
-    );
+    // User is not logged in.
+    return const AuthScreen();
   }
 }

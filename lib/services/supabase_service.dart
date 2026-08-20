@@ -36,7 +36,7 @@ class SupabaseService {
       //
       // Android / iOS:
       // Return through the app deep link.
-      redirectTo: kIsWeb ? Uri.base.origin : 'io.minsprep://login-callback',
+      redirectTo: kIsWeb ? Uri.base.origin : 'io.minsprep://login-callback/',
     );
   }
 

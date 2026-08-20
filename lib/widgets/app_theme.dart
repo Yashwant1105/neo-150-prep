@@ -2,17 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 const ink = Color(0xFF070A09);
-
 const surface = Color(0xFF0D1210);
-
 const surface2 = Color(0xFF121A16);
-
 const line = Color(0xFF223029);
-
 const acid = Color(0xFFB7FF4A);
-
 const muted = Color(0xFF8B9891);
-
 const white = Color(0xFFF3F7F4);
 
 ThemeData buildAppTheme() {
@@ -41,10 +35,135 @@ ThemeData buildAppTheme() {
     ),
 
     // =========================================================
-    // GLOBAL FONT
+    // TYPOGRAPHY
     // =========================================================
+    //
+    // Space Grotesk → headings / important UI
+    // Manrope       → normal human-readable content
+    // JetBrains Mono → technical data / numbers
+    //
 
-    textTheme: spaceGrotesk,
+    textTheme: spaceGrotesk.copyWith(
+      // -------------------------------------------------------
+      // DISPLAY
+      // -------------------------------------------------------
+
+      displayLarge: GoogleFonts.spaceGrotesk(
+        fontSize: 57,
+        fontWeight: FontWeight.w800,
+        color: white,
+        height: 1.05,
+      ),
+
+      displayMedium: GoogleFonts.spaceGrotesk(
+        fontSize: 45,
+        fontWeight: FontWeight.w800,
+        color: white,
+        height: 1.05,
+      ),
+
+      displaySmall: GoogleFonts.spaceGrotesk(
+        fontSize: 36,
+        fontWeight: FontWeight.w800,
+        color: white,
+        height: 1.08,
+      ),
+
+      // -------------------------------------------------------
+      // HEADLINES
+      // -------------------------------------------------------
+
+      headlineLarge: GoogleFonts.spaceGrotesk(
+        fontSize: 32,
+        fontWeight: FontWeight.w800,
+        color: white,
+        height: 1.1,
+      ),
+
+      headlineMedium: GoogleFonts.spaceGrotesk(
+        fontSize: 28,
+        fontWeight: FontWeight.w800,
+        color: white,
+        height: 1.12,
+      ),
+
+      headlineSmall: GoogleFonts.spaceGrotesk(
+        fontSize: 24,
+        fontWeight: FontWeight.w700,
+        color: white,
+        height: 1.15,
+      ),
+
+      // -------------------------------------------------------
+      // TITLES
+      // -------------------------------------------------------
+
+      titleLarge: GoogleFonts.spaceGrotesk(
+        fontSize: 21,
+        fontWeight: FontWeight.w700,
+        color: white,
+      ),
+
+      titleMedium: GoogleFonts.manrope(
+        fontSize: 16,
+        fontWeight: FontWeight.w700,
+        color: white,
+      ),
+
+      titleSmall: GoogleFonts.manrope(
+        fontSize: 14,
+        fontWeight: FontWeight.w700,
+        color: white,
+      ),
+
+      // -------------------------------------------------------
+      // BODY
+      // -------------------------------------------------------
+
+      bodyLarge: GoogleFonts.manrope(
+        fontSize: 16,
+        fontWeight: FontWeight.w500,
+        color: white,
+        height: 1.45,
+      ),
+
+      bodyMedium: GoogleFonts.manrope(
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+        color: white,
+        height: 1.4,
+      ),
+
+      bodySmall: GoogleFonts.manrope(
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+        color: muted,
+        height: 1.4,
+      ),
+
+      // -------------------------------------------------------
+      // LABELS
+      // -------------------------------------------------------
+
+      labelLarge: GoogleFonts.manrope(
+        fontSize: 14,
+        fontWeight: FontWeight.w700,
+        color: white,
+      ),
+
+      labelMedium: GoogleFonts.manrope(
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+        color: white,
+      ),
+
+      labelSmall: GoogleFonts.jetBrainsMono(
+        fontSize: 10,
+        fontWeight: FontWeight.w700,
+        color: muted,
+        letterSpacing: 0.6,
+      ),
+    ),
 
     // =========================================================
     // CARDS
