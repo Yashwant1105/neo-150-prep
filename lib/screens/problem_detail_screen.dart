@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/problem.dart';
@@ -548,7 +549,117 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
       );
     }
 
-    return cleaned.isEmpty ? value.trim() : cleaned;
+    final result = cleaned.isEmpty ? value.trim() : cleaned;
+    return _normalizeComplexityText(result);
+  }
+
+  static String _normalizeComplexityText(String value) {
+    var text = value;
+
+    // ---------------------------------------------------------------------------
+    // REMOVE LATEX / MARKDOWN WRAPPERS
+    // ---------------------------------------------------------------------------
+
+    // Remove escaped dollar signs.
+    text = text.replaceAll(r'\$', '');
+
+    // Remove normal dollar signs used as math delimiters.
+    text = text.replaceAll('\$', '');
+
+    // Remove LaTeX inline math delimiters.
+    text = text.replaceAll(r'\(', '');
+    text = text.replaceAll(r'\)', '');
+
+    // Remove backticks around complexity expressions.
+    text = text.replaceAll('`', '');
+
+    // ---------------------------------------------------------------------------
+    // NORMALIZE COMMON AI FORMATS
+    // ---------------------------------------------------------------------------
+
+    final replacements = <String, String>{
+      // O of n log n
+      r'\bO\s+of\s+n\s+log\s+n\b': 'O(n log n)',
+
+      // O of log n
+      r'\bO\s+of\s+log\s+n\b': 'O(log n)',
+
+      // O of n
+      r'\bO\s+of\s+n\b': 'O(n)',
+
+      // O of 1
+      r'\bO\s+of\s+1\b': 'O(1)',
+
+      // O of m + n
+      r'\bO\s+of\s+m\s*\+\s*n\b': 'O(m + n)',
+
+      // O of n + m
+      r'\bO\s+of\s+n\s*\+\s*m\b': 'O(n + m)',
+
+      // O of n square
+      r'\bO\s+of\s+n\s+square\b': 'O(n²)',
+
+      // Common verbal forms
+      r'\bconstant\s+time\b': 'O(1)',
+      r'\blogarithmic\s+time\b': 'O(log n)',
+      r'\blinear\s+time\b': 'O(n)',
+      r'\blinear\s+space\b': 'O(n)',
+      r'\bconstant\s+space\b': 'O(1)',
+    };
+
+    for (final entry in replacements.entries) {
+      text = text.replaceAll(
+        RegExp(
+          entry.key,
+          caseSensitive: false,
+        ),
+        entry.value,
+      );
+    }
+
+    // ---------------------------------------------------------------------------
+    // NORMALIZE O ( n ) → O(n)
+    // NORMALIZE O( n log n ) → O(n log n)
+    // ---------------------------------------------------------------------------
+
+    text = text.replaceAllMapped(
+      RegExp(
+        r'\bO\s*\(\s*([^)]+?)\s*\)',
+        caseSensitive: false,
+      ),
+      (match) {
+        final inside = match
+            .group(1)!
+            .replaceAll(
+              RegExp(r'\s+'),
+              ' ',
+            )
+            .trim();
+
+        return 'O($inside)';
+      },
+    );
+
+    // ---------------------------------------------------------------------------
+    // CLEAN UP DUPLICATED SPACING
+    // ---------------------------------------------------------------------------
+
+    text = text
+        .replaceAll(
+          RegExp(r'[ \t]+'),
+          ' ',
+        )
+        .replaceAll(
+          RegExp(r' *\n *'),
+          '\n',
+        )
+        .replaceAll(
+          RegExp(r'\n{3,}'),
+          '\n\n',
+        )
+        .trim();
+
+    return text;
   }
 
   // ---------------------------------------------------------------------------
@@ -821,6 +932,172 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
   }
 }
 
+class _AiFormattedText extends StatelessWidget {
+  final String text;
+  final bool approach;
+
+  const _AiFormattedText({
+    required this.text,
+    required this.approach,
+  });
+
+  static const _tangerine = Color(0xFFFF9F43);
+
+  static const _sectionNames = {
+    'PATTERN',
+    'CORE IDEA',
+    'HOW IT WORKS',
+    'TIME COMPLEXITY',
+    'SPACE COMPLEXITY',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final normalized = _ProblemDetailScreenState._normalizeComplexityText(text);
+
+    // -------------------------------------------------------------------------
+    // HINTS
+    // -------------------------------------------------------------------------
+
+    if (!approach) {
+      return _buildRichText(
+        normalized,
+        GoogleFonts.inter(
+          color: Colors.white,
+          fontSize: 14,
+          height: 1.45,
+          fontWeight: FontWeight.w600,
+        ),
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // APPROACH
+    // -------------------------------------------------------------------------
+
+    final lines = normalized.split('\n');
+    final children = <Widget>[];
+
+    for (final rawLine in lines) {
+      final raw = rawLine.trim();
+
+      if (raw.isEmpty) {
+        children.add(
+          const SizedBox(height: 7),
+        );
+        continue;
+      }
+
+      final heading = raw.replaceAll(':', '').trim().toUpperCase();
+
+      // -----------------------------------------------------------------------
+      // TANGERINE SECTION HEADING
+      // -----------------------------------------------------------------------
+
+      if (_sectionNames.contains(heading)) {
+        children.add(
+          Padding(
+            padding: EdgeInsets.only(
+              top: children.isEmpty ? 0 : 13,
+              bottom: 6,
+            ),
+            child: Text(
+              heading,
+              style: GoogleFonts.spaceMono(
+                color: _tangerine,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.7,
+              ),
+            ),
+          ),
+        );
+
+        continue;
+      }
+
+      // -----------------------------------------------------------------------
+      // NORMAL GOOGLE-FONT CONTENT
+      // -----------------------------------------------------------------------
+
+      children.add(
+        _buildRichText(
+          raw,
+          GoogleFonts.inter(
+            color: Colors.white,
+            fontSize: 14,
+            height: 1.5,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
+    );
+  }
+
+  Widget _buildRichText(
+    String value,
+    TextStyle style,
+  ) {
+    final spans = <TextSpan>[];
+
+    final complexityRegex = RegExp(
+      r'\bO\s*\([^)]*\)',
+      caseSensitive: false,
+    );
+
+    var cursor = 0;
+
+    for (final match in complexityRegex.allMatches(value)) {
+      if (match.start > cursor) {
+        spans.add(
+          TextSpan(
+            text: value.substring(
+              cursor,
+              match.start,
+            ),
+          ),
+        );
+      }
+
+      final complexity = match.group(0)!;
+
+      spans.add(
+        TextSpan(
+          text: complexity,
+          style: GoogleFonts.spaceMono(
+            color: _tangerine,
+            fontSize: style.fontSize,
+            height: style.height,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      );
+
+      cursor = match.end;
+    }
+
+    if (cursor < value.length) {
+      spans.add(
+        TextSpan(
+          text: value.substring(cursor),
+        ),
+      );
+    }
+
+    return RichText(
+      text: TextSpan(
+        style: style,
+        children: spans,
+      ),
+    );
+  }
+}
+
 // =============================================================================
 // AI COACH CARD
 // =============================================================================
@@ -953,14 +1230,9 @@ class _AiCoachCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              text!,
-              style: humanTextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                height: 1.45,
-                fontWeight: FontWeight.w600,
-              ),
+            _AiFormattedText(
+              text: text!,
+              approach: mode == 'approach',
             ),
           ],
           const SizedBox(height: 18),

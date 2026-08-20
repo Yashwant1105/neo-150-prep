@@ -256,14 +256,18 @@ HOW IT WORKS
 3-5 short steps, one step per line. Start each step with a number such as 1. 2. 3. Do not use bullets.
 
 TIME COMPLEXITY
-One concise line such as O(n), followed by a short reason.
+One concise line such as O(n), followed by a short reason. Use the exact notation O(n), not "O of n".
 
 SPACE COMPLEXITY
-One concise line such as O(1) or O(n), followed by a short reason.
+One concise line such as O(1) or O(n), followed by a short reason. Use exact Big-O notation.
 
 Formatting rules:
 - Use the section names exactly as written.
 - Put each section name on its own line.
+- Always write time and space complexity using canonical Big-O notation:
+  O(1), O(n), O(log n), O(n log n), O(n²), O(m + n), etc.
+- Never write complexity as "O of n", "O of 1", "O of log n", or similar prose.
+- Keep the complexity expression on the same line as its reason.
 - Do not use Markdown bold, italics, backticks, or # headings.
 - Do not add an introduction before PATTERN.
 - Do not add a conclusion after SPACE COMPLEXITY.
