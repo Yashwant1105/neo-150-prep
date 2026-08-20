@@ -9,6 +9,7 @@ import '../providers/app_controller.dart';
 import '../services/supabase_service.dart';
 import '../widgets/ui.dart';
 import '../widgets/app_theme.dart';
+import 'package:flutter/foundation.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -26,7 +27,6 @@ class ProfileScreen extends ConsumerWidget {
       ),
       data: (s) {
         final user = SupabaseService.currentSession?.user;
-
         final name = user?.userMetadata?['full_name']?.toString() ??
             user?.userMetadata?['name']?.toString() ??
             'Your grind';
@@ -365,7 +365,7 @@ class ProfileScreen extends ConsumerWidget {
     // =======================================================================
 
     final payload = {
-      'app': "Min's Prep",
+      'app': "Neo 150 Prep",
       'exported_at': DateTime.now().toIso8601String(),
       'xp': s.xp,
       'level': s.level,
@@ -445,7 +445,7 @@ class ProfileScreen extends ConsumerWidget {
         return;
       }
 
-      if (result.status == ShareResultStatus.unavailable) {
+      if (!kIsWeb && result.status == ShareResultStatus.unavailable) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(

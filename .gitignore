@@ -9,3 +9,7 @@ build/
 .env
 # Local app configuration
 lib/config/app_config.dart
+# Android / Gradle generated files
+.gradle/
+android/.gradle/
+android/app/build/

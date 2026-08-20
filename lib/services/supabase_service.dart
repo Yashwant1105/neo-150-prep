@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../models/problem.dart';
 
 class SupabaseService {
@@ -21,16 +23,34 @@ class SupabaseService {
 
   static SupabaseClient get client => Supabase.instance.client;
 
+  // ---------------------------------------------------------------------------
+  // GOOGLE SIGN IN
+  // ---------------------------------------------------------------------------
+
   Future<void> signInWithGoogle() async {
     await client.auth.signInWithOAuth(
       OAuthProvider.google,
-      redirectTo: 'io.minsprep://login-callback',
+
+      // Web:
+      // Let Supabase return to the current web application.
+      //
+      // Android / iOS:
+      // Return through the Min's Prep deep link.
+      redirectTo: kIsWeb ? Uri.base.origin : 'io.minsprep://login-callback',
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // SIGN OUT
+  // ---------------------------------------------------------------------------
 
   Future<void> signOut() async {
     await client.auth.signOut();
   }
+
+  // ---------------------------------------------------------------------------
+  // PROBLEM UUID
+  // ---------------------------------------------------------------------------
 
   /// Finds the actual UUID of a problem in Supabase
   /// using the stable slug bundled with the Flutter app.
@@ -40,6 +60,10 @@ class SupabaseService {
 
     return result['id'] as String;
   }
+
+  // ---------------------------------------------------------------------------
+  // PROGRESS
+  // ---------------------------------------------------------------------------
 
   Future<void> upsertProgress(
     String userId,
@@ -68,19 +92,23 @@ class SupabaseService {
   ) async {
     final result = await client.from('user_problem_progress').select(
       '''
-      problem_id,
-      completed,
-      completed_at,
-      notes,
-      review_flagged,
-      review_due_at,
-      last_reviewed_at,
-      problems!inner(slug)
-      ''',
+          problem_id,
+          completed,
+          completed_at,
+          notes,
+          review_flagged,
+          review_due_at,
+          last_reviewed_at,
+          problems!inner(slug)
+          ''',
     ).eq('user_id', userId);
 
     return List<Map<String, dynamic>>.from(result);
   }
+
+  // ---------------------------------------------------------------------------
+  // DAILY GOAL
+  // ---------------------------------------------------------------------------
 
   Future<int?> fetchDailyGoal(String userId) async {
     final result = await client
@@ -109,6 +137,10 @@ class SupabaseService {
       onConflict: 'user_id',
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // ACHIEVEMENTS
+  // ---------------------------------------------------------------------------
 
   /// Fetches ALL achievement definitions and attaches
   /// the current user's unlock time when available.
