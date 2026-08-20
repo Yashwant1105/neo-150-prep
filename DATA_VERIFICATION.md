@@ -1,4 +1,4 @@
-# Min's Prep — Dataset Verification
+# Neo 150 Prep — Dataset Verification
 
 The seed dataset contains exactly 150 unique problems.
 

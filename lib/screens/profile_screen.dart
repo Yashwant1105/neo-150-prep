@@ -263,7 +263,7 @@ class ProfileScreen extends ConsumerWidget {
               // =============================================================
 
               const Text(
-                "MIN'S PREP",
+                'NEO 150 PREP',
                 style: TextStyle(
                   color: acid,
                   fontSize: 11,
@@ -428,10 +428,10 @@ class ProfileScreen extends ConsumerWidget {
           fileNameOverrides: [
             fileName,
           ],
-          title: "Min's Prep Progress",
+          title: 'Neo 150 Prep Progress',
           text: format == 'json'
-              ? "My Min's Prep progress — JSON backup"
-              : "My Min's Prep progress — CSV export",
+              ? 'My Neo 150 Prep progress - JSON backup'
+              : 'My Neo 150 Prep progress - CSV export',
           sharePositionOrigin: box == null
               ? null
               : box.localToGlobal(

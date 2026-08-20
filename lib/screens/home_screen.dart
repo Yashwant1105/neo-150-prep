@@ -350,7 +350,7 @@ class _BrandLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Text(
-      "MIN'S PREP",
+      'NEO 150 PREP',
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(

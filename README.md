@@ -1,4 +1,4 @@
-# Min's Prep
+# Neo 150 Prep
 
 A Flutter + Riverpod + Supabase mobile app for completing NeetCode 150 as a satisfying daily coding grind.
 

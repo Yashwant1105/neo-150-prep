@@ -34,7 +34,7 @@ class MinsPrepApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: "Min's Prep",
+      title: 'Neo 150 Prep',
       theme: buildAppTheme(),
       home: const AuthGate(),
     );

@@ -35,7 +35,7 @@ class SupabaseService {
       // Let Supabase return to the current web application.
       //
       // Android / iOS:
-      // Return through the Min's Prep deep link.
+      // Return through the app deep link.
       redirectTo: kIsWeb ? Uri.base.origin : 'io.minsprep://login-callback',
     );
   }
