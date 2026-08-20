@@ -107,6 +107,71 @@ class SupabaseService {
   }
 
   // ---------------------------------------------------------------------------
+  // INTERVIEW ATTEMPTS
+  // ---------------------------------------------------------------------------
+
+  /// Saves one answered interview question.
+  ///
+  /// `user_interview_attempts` is the canonical table for interview history.
+  /// Q1 is stored with session_completed=false and Q2 with true.
+  Future<void> saveInterviewAttempt({
+    required String userId,
+    required Problem problem,
+    required int questionNumber,
+    required String question,
+    required String answer,
+    required String feedback,
+    required int? score,
+    required bool sessionCompleted,
+  }) async {
+    final problemUuid = await getProblemUuid(problem.slug);
+
+    await client.from('user_interview_attempts').insert({
+      'user_id': userId,
+      'problem_id': problemUuid,
+      'question_number': questionNumber,
+      'question': question,
+      'answer': answer,
+      'feedback': feedback,
+      'score': score,
+      'session_completed': sessionCompleted,
+    });
+  }
+
+  /// Returns problem UUIDs for which this user has completed at least one
+  /// two-question interview session.
+  Future<Set<String>> fetchCompletedInterviewProblemIds(
+    String userId,
+  ) async {
+    final rows = await client
+        .from('user_interview_attempts')
+        .select('problem_id')
+        .eq('user_id', userId)
+        .eq('session_completed', true);
+
+    return rows.map<String>((row) => row['problem_id'] as String).toSet();
+  }
+
+  /// Checks whether the supplied problem has already had a completed
+  /// interview session for this user.
+  Future<bool> hasCompletedInterview(
+    String userId,
+    Problem problem,
+  ) async {
+    final problemUuid = await getProblemUuid(problem.slug);
+
+    final row = await client
+        .from('user_interview_attempts')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('problem_id', problemUuid)
+        .eq('session_completed', true)
+        .limit(1);
+
+    return row.isNotEmpty;
+  }
+
+  // ---------------------------------------------------------------------------
   // DAILY GOAL
   // ---------------------------------------------------------------------------
 

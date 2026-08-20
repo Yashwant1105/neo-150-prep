@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../models/problem.dart';
 import '../providers/app_controller.dart';
@@ -8,6 +9,7 @@ import '../widgets/app_theme.dart';
 import '../widgets/ui.dart';
 import 'problem_detail_screen.dart';
 import 'problems_screen.dart';
+import 'interview_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -82,6 +84,24 @@ class HomeScreen extends ConsumerWidget {
                 ),
                 sliver: SliverToBoxAdapter(
                   child: _QuickStats(state: s),
+                ),
+              ),
+
+              // -----------------------------------------------------------------
+              // TODAY'S PREP
+              // -----------------------------------------------------------------
+
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(
+                  20,
+                  24,
+                  20,
+                  8,
+                ),
+                sliver: SliverToBoxAdapter(
+                  child: _DailyPrep(
+                    state: s,
+                  ),
                 ),
               ),
 
@@ -852,6 +872,474 @@ class _Stat extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+// =============================================================================
+// DAILY PREP
+// =============================================================================
+
+// =============================================================================
+// DAILY PREP
+// =============================================================================
+
+class _DailyPrep extends StatelessWidget {
+  final AppState state;
+
+  const _DailyPrep({
+    required this.state,
+  });
+
+  List<Problem> _getPrepProblems() {
+    final result = <Problem>[];
+
+    // Keep the first problem due for review at the top.
+    if (state.dueReviews.isNotEmpty) {
+      result.add(state.dueReviews.first);
+    }
+
+    // Then add the next problems.
+    //
+    // IMPORTANT:
+    // Completed problems are intentionally NOT filtered out here.
+    // This allows a completed daily-prep task to remain visible and
+    // receive its completed/tangerine visual state.
+    for (final problem in state.problems) {
+      if (!result.any((p) => p.id == problem.id)) {
+        result.add(problem);
+      }
+
+      if (result.length >= 2) {
+        break;
+      }
+    }
+
+    return result.take(2).toList();
+  }
+
+  void _openProblem(
+    BuildContext context,
+    Problem problem,
+  ) {
+    FocusScope.of(context).unfocus();
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProblemDetailScreen(
+          problem: problem,
+        ),
+      ),
+    );
+  }
+
+  void _openInterview(
+    BuildContext context,
+    Problem problem,
+  ) {
+    FocusScope.of(context).unfocus();
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => InterviewScreen(
+          initialProblem: problem,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final prepProblems = _getPrepProblems();
+
+    final goal = state.dailyGoal;
+    final completedToday = state.todayCompleted;
+
+    final goalReached = completedToday >= goal;
+
+    final progress = goal <= 0 ? 0.0 : (completedToday / goal).clamp(0.0, 1.0);
+
+    // Interview advances independently from the solve list. Prefer the first
+    // completed problem that has not yet had a completed interview.
+    final interviewProblem = state.nextInterviewProblem;
+
+    return GlowCard(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // -------------------------------------------------------------------
+          // HEADER
+          // -------------------------------------------------------------------
+
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "TODAY'S PREP",
+                      style: GoogleFonts.spaceMono(
+                        color: const Color(0xFFFF9F43),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      goalReached
+                          ? 'You showed up today. 🔥'
+                          : 'Your personalized grind.',
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: acid.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: acid.withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Text(
+                  '$completedToday / $goal',
+                  style: GoogleFonts.spaceMono(
+                    color: acid,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // -------------------------------------------------------------------
+          // PROGRESS BAR
+          // -------------------------------------------------------------------
+
+          ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 6,
+              backgroundColor: line,
+              color: acid,
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          // -------------------------------------------------------------------
+          // PROBLEM TASKS
+          // -------------------------------------------------------------------
+
+          if (prepProblems.isNotEmpty)
+            ...List.generate(
+              prepProblems.length,
+              (index) {
+                final problem = prepProblems[index];
+
+                final isReview = state.dueReviews.any(
+                  (p) => p.id == problem.id,
+                );
+
+                final isCompleted =
+                    state.progress[problem.id]?.completed ?? false;
+
+                return Padding(
+                  padding: EdgeInsets.only(
+                    bottom: index == prepProblems.length - 1 ? 0 : 10,
+                  ),
+                  child: _DailyPrepTask(
+                    number: index + 1,
+                    type: isCompleted
+                        ? 'COMPLETED'
+                        : isReview
+                            ? 'REVIEW'
+                            : 'SOLVE',
+                    title: problem.title,
+                    subtitle: isCompleted
+                        ? '${problem.topic} • ${problem.difficulty}'
+                        : isReview
+                            ? 'Due for review'
+                            : '${problem.topic} • ${problem.difficulty}',
+                    icon: isCompleted
+                        ? Icons.check_rounded
+                        : isReview
+                            ? Icons.replay_rounded
+                            : Icons.code_rounded,
+                    isCompleted: isCompleted,
+                    onTap: () => _openProblem(
+                      context,
+                      problem,
+                    ),
+                  ),
+                );
+              },
+            )
+          else
+            Text(
+              "No problems left to add to today's prep.",
+              style: GoogleFonts.inter(
+                color: muted,
+                fontSize: 12,
+              ),
+            ),
+
+          // -------------------------------------------------------------------
+          // INTERVIEW TASK
+          // -------------------------------------------------------------------
+
+          if (interviewProblem != null) ...[
+            const SizedBox(height: 10),
+            _DailyPrepTask(
+              number: prepProblems.length + 1,
+              type: 'INTERVIEW',
+              title: 'Practice explaining',
+              subtitle: state.hasCompletedInterview(interviewProblem.id)
+                  ? '${interviewProblem.title} • Interview again'
+                  : interviewProblem.title,
+              icon: Icons.mic_none_rounded,
+              isCompleted: false,
+              onTap: () => _openInterview(
+                context,
+                interviewProblem,
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 16),
+
+          // -------------------------------------------------------------------
+          // START BUTTON
+          // -------------------------------------------------------------------
+
+          SizedBox(
+            width: double.infinity,
+            height: 46,
+            child: FilledButton(
+              onPressed: prepProblems.isNotEmpty
+                  ? () => _openProblem(
+                        context,
+                        prepProblems.first,
+                      )
+                  : interviewProblem != null
+                      ? () => _openInterview(
+                            context,
+                            interviewProblem,
+                          )
+                      : null,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    goalReached ? 'KEEP THE MOMENTUM' : 'START NEXT',
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: .2,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 19,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// DAILY PREP TASK
+// =============================================================================
+
+class _DailyPrepTask extends StatelessWidget {
+  final int number;
+  final String type;
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final bool isCompleted;
+  final VoidCallback onTap;
+
+  const _DailyPrepTask({
+    required this.number,
+    required this.type,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.isCompleted,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isInterview = type == 'INTERVIEW';
+    final isReview = type == 'REVIEW';
+
+    // Tangerine is reserved for completed tasks.
+    const tangerine = Color(0xFFFF9F43);
+
+    final highlighted = isReview || isInterview;
+
+    final borderColor = isCompleted
+        ? tangerine.withValues(alpha: 0.48)
+        : isInterview
+            ? acid.withValues(alpha: 0.28)
+            : line;
+
+    final numberBackground = isCompleted
+        ? tangerine.withValues(alpha: 0.13)
+        : highlighted
+            ? acid.withValues(alpha: 0.12)
+            : Colors.white.withValues(alpha: 0.04);
+
+    final accentColor = isCompleted
+        ? tangerine
+        : highlighted
+            ? acid
+            : muted;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: isCompleted
+                ? tangerine.withValues(alpha: 0.055)
+                : surface.withValues(alpha: 0.55),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: borderColor,
+            ),
+          ),
+          child: Row(
+            children: [
+              // ---------------------------------------------------------------
+              // NUMBER / CHECK
+              // ---------------------------------------------------------------
+
+              Container(
+                width: 34,
+                height: 34,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: numberBackground,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: isCompleted
+                    ? Icon(
+                        Icons.check_rounded,
+                        color: tangerine,
+                        size: 20,
+                      )
+                    : Text(
+                        '$number',
+                        style: GoogleFonts.spaceMono(
+                          color: accentColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+              ),
+
+              const SizedBox(width: 11),
+
+              // ---------------------------------------------------------------
+              // ICON
+              // ---------------------------------------------------------------
+
+              Icon(
+                icon,
+                size: 20,
+                color: accentColor,
+              ),
+
+              const SizedBox(width: 11),
+
+              // ---------------------------------------------------------------
+              // CONTENT
+              // ---------------------------------------------------------------
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      type,
+                      style: GoogleFonts.spaceMono(
+                        color: accentColor,
+                        fontSize: 8,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        color: muted,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(width: 8),
+
+              // ---------------------------------------------------------------
+              // RIGHT INDICATOR
+              // ---------------------------------------------------------------
+
+              Icon(
+                isCompleted
+                    ? Icons.check_circle_outline_rounded
+                    : Icons.chevron_right_rounded,
+                color: isCompleted ? tangerine : muted,
+                size: 20,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

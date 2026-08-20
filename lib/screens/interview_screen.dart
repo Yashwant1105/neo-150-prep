@@ -115,7 +115,7 @@ class _InterviewScreenState extends ConsumerState<InterviewScreen> {
       final state = ref.read(appControllerProvider).value;
       final notes = state?.progress[problem.id]?.notes ?? '';
 
-      final feedback = await _ai.getInterviewFeedback(
+      final rawFeedback = await _ai.getInterviewFeedback(
         title: problem.title,
         topic: problem.topic,
         difficulty: problem.difficulty,
@@ -125,12 +125,38 @@ class _InterviewScreenState extends ConsumerState<InterviewScreen> {
         notes: notes,
       );
 
+      final cleanedFeedback = _cleanText(rawFeedback);
+      final parsedScore = _extractScore(rawFeedback);
+
+      // Persist the answer + AI evaluation immediately.
+      // Q2 is marked as the completed session; Q1 remains part of the same
+      // session but is not considered complete yet.
+      try {
+        await ref.read(appControllerProvider.notifier).saveInterviewAttempt(
+              problem: problem,
+              questionNumber: _questionNumber,
+              question: question,
+              answer: answer,
+              feedback: cleanedFeedback,
+              score: parsedScore,
+              sessionCompleted: _questionNumber == 2,
+            );
+      } catch (saveError) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Feedback loaded, but interview history could not be saved: $saveError',
+              ),
+            ),
+          );
+        }
+      }
+
       if (!mounted) return;
 
-      final parsedScore = _extractScore(feedback);
-
       setState(() {
-        _feedback = _cleanText(feedback);
+        _feedback = cleanedFeedback;
         _score = parsedScore;
         _submitting = false;
       });
@@ -287,7 +313,13 @@ class _InterviewScreenState extends ConsumerState<InterviewScreen> {
                   .where(
                     (p) => appState.progress[p.id]?.completed == true,
                   )
-                  .toList(),
+                  .toList()
+                ..sort((a, b) {
+                  final aDone = appState.hasCompletedInterview(a.id);
+                  final bDone = appState.hasCompletedInterview(b.id);
+                  if (aDone == bDone) return a.order.compareTo(b.order);
+                  return aDone ? 1 : -1;
+                }),
               onSelect: _start,
             );
           }

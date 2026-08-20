@@ -6,8 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/local_repository.dart';
-import '../models/achievement.dart';
 import '../models/problem.dart';
+import '../models/achievement.dart';
 import '../services/supabase_service.dart';
 
 final appControllerProvider =
@@ -18,14 +18,16 @@ class AppState {
   final Map<String, ProblemProgress> progress;
   final int dailyGoal;
   final bool syncing;
+  final Set<String> interviewedProblemIds;
   final List<Achievement> achievements;
 
   const AppState({
     required this.problems,
     required this.progress,
-    required this.achievements,
     this.dailyGoal = 2,
     this.syncing = false,
+    this.interviewedProblemIds = const <String>{},
+    this.achievements = const <Achievement>[],
   });
 
   int get completed => progress.values.where((p) => p.completed).length;
@@ -38,9 +40,7 @@ class AppState {
   int get xp => progress.entries.fold(0, (sum, e) {
         if (!e.value.completed) return sum;
 
-        final p = problems.firstWhere(
-          (p) => p.id == e.key,
-        );
+        final p = problems.firstWhere((p) => p.id == e.key);
 
         return sum +
             (p.difficulty == 'Easy'
@@ -56,15 +56,12 @@ class AppState {
     final now = DateTime.now();
 
     return progress.values.where((p) {
-      if (!p.completed || p.completedAt == null) {
-        return false;
-      }
+      final d = p.completedAt;
 
-      final completedAt = p.completedAt!.toLocal();
-
-      return completedAt.year == now.year &&
-          completedAt.month == now.month &&
-          completedAt.day == now.day;
+      return d != null &&
+          d.year == now.year &&
+          d.month == now.month &&
+          d.day == now.day;
     }).length;
   }
 
@@ -75,25 +72,21 @@ class AppState {
       final d = p.completedAt;
 
       if (p.completed && d != null) {
-        days.add(_dayKey(d.toLocal()));
+        days.add(_dayKey(d));
       }
     }
 
     var cursor = DateTime.now();
 
     if (!days.contains(_dayKey(cursor))) {
-      cursor = cursor.subtract(
-        const Duration(days: 1),
-      );
+      cursor = cursor.subtract(const Duration(days: 1));
     }
 
     var streak = 0;
 
     while (days.contains(_dayKey(cursor))) {
       streak++;
-      cursor = cursor.subtract(
-        const Duration(days: 1),
-      );
+      cursor = cursor.subtract(const Duration(days: 1));
     }
 
     return streak;
@@ -101,18 +94,14 @@ class AppState {
 
   int get longestStreak {
     final dates = progress.values
-        .where(
-          (p) => p.completed && p.completedAt != null,
+        .where((p) => p.completedAt != null)
+        .map(
+          (p) => DateTime(
+            p.completedAt!.year,
+            p.completedAt!.month,
+            p.completedAt!.day,
+          ),
         )
-        .map((p) {
-          final local = p.completedAt!.toLocal();
-
-          return DateTime(
-            local.year,
-            local.month,
-            local.day,
-          );
-        })
         .toSet()
         .toList()
       ..sort();
@@ -138,39 +127,44 @@ class AppState {
         final r = progress[p.id];
 
         return r?.reviewDueAt != null &&
-            !r!.reviewDueAt!.isAfter(
-              DateTime.now(),
-            );
+            !r!.reviewDueAt!.isAfter(DateTime.now());
       }).toList();
 
   Problem? get nextProblem {
-    final incomplete = problems
-        .where(
-          (p) => !(progress[p.id]?.completed ?? false),
-        )
-        .toList();
+    final incomplete =
+        problems.where((p) => !(progress[p.id]?.completed ?? false)).toList();
 
     if (incomplete.isEmpty) return null;
-
-    final unfinishedTopics = <String>{
-      ...incomplete.map((p) => p.topic),
-    };
-
-    for (final p in incomplete) {
-      if (unfinishedTopics.contains(p.topic)) {
-        return p;
-      }
-    }
 
     return incomplete.first;
   }
 
-  int get unlockedAchievements => achievements.where((a) => a.unlocked).length;
+  /// First completed problem that has not yet had a completed interview.
+  /// If every completed problem has already been interviewed, fall back to
+  /// the first completed problem so the Interview Me flow never disappears.
+  Problem? get nextInterviewProblem {
+    final completedProblems =
+        problems.where((p) => progress[p.id]?.completed == true).toList();
+
+    if (completedProblems.isEmpty) return null;
+
+    for (final problem in completedProblems) {
+      if (!interviewedProblemIds.contains(problem.id)) {
+        return problem;
+      }
+    }
+
+    return completedProblems.first;
+  }
+
+  bool hasCompletedInterview(String problemId) =>
+      interviewedProblemIds.contains(problemId);
 
   AppState copyWith({
     Map<String, ProblemProgress>? progress,
     int? dailyGoal,
     bool? syncing,
+    Set<String>? interviewedProblemIds,
     List<Achievement>? achievements,
   }) {
     return AppState(
@@ -178,6 +172,8 @@ class AppState {
       progress: progress ?? this.progress,
       dailyGoal: dailyGoal ?? this.dailyGoal,
       syncing: syncing ?? this.syncing,
+      interviewedProblemIds:
+          interviewedProblemIds ?? this.interviewedProblemIds,
       achievements: achievements ?? this.achievements,
     );
   }
@@ -200,6 +196,9 @@ class AppController extends AsyncNotifier<AppState> {
 
     final userId = SupabaseService.currentSession?.user.id;
 
+    // Start listening for internet connectivity.
+    // When the device comes back online, pending
+    // offline changes will automatically be uploaded.
     _startConnectivityListener();
 
     final localProgress = await _local.loadProgress(userId);
@@ -207,11 +206,45 @@ class AppController extends AsyncNotifier<AppState> {
     final prefs = await _local.loadPrefs(userId);
 
     var progress = localProgress;
-    var dailyGoal = prefs['dailyGoal'] ?? 2;
-
+    var interviewedProblemIds = <String>{};
     var achievements = <Achievement>[];
 
+    var dailyGoal = prefs['dailyGoal'] ?? 2;
+
     if (userId != null) {
+      try {
+        interviewedProblemIds =
+            await _remote.fetchCompletedInterviewProblemIds(userId);
+      } catch (e, stack) {
+        // Interview history must never prevent the normal progress data from
+        // loading (for example if its RLS policy is temporarily unavailable).
+        debugPrint('Initial interview history sync failed: $e');
+        debugPrintStack(stackTrace: stack);
+      }
+
+      try {
+        final achievementRows = await _remote.fetchAchievements(userId);
+
+        achievements = achievementRows.map((row) {
+          final achievementData =
+              Map<String, dynamic>.from(row['achievements'] as Map);
+
+          final unlockedAtRaw = row['unlocked_at'];
+
+          final unlockedAt = unlockedAtRaw == null
+              ? null
+              : DateTime.tryParse(unlockedAtRaw.toString());
+
+          return Achievement.fromMap(
+            achievementData,
+            unlockedAt: unlockedAt,
+          );
+        }).toList();
+      } catch (e, stack) {
+        debugPrint('Achievement sync failed: $e');
+        debugPrintStack(stackTrace: stack);
+      }
+
       try {
         final rows = await _remote.fetchProgress(userId);
 
@@ -254,6 +287,7 @@ class AppController extends AsyncNotifier<AppState> {
           progress,
         );
 
+        // Load the daily goal from Supabase.
         final cloudDailyGoal = await _remote.fetchDailyGoal(userId);
 
         if (cloudDailyGoal != null) {
@@ -266,20 +300,17 @@ class AppController extends AsyncNotifier<AppState> {
             },
           );
         } else {
+          // First login/device: upload the locally stored goal.
           await _remote.saveDailyGoal(
             userId,
             dailyGoal,
           );
         }
-
-        achievements = await _loadAchievements(userId);
       } catch (e, stack) {
         debugPrint(
           'Initial cloud sync failed: $e',
         );
-        debugPrintStack(
-          stackTrace: stack,
-        );
+        debugPrintStack(stackTrace: stack);
       }
     }
 
@@ -287,39 +318,9 @@ class AppController extends AsyncNotifier<AppState> {
       problems: problems,
       progress: progress,
       dailyGoal: dailyGoal,
+      interviewedProblemIds: interviewedProblemIds,
       achievements: achievements,
     );
-  }
-
-  Future<List<Achievement>> _loadAchievements(
-    String userId,
-  ) async {
-    try {
-      final rows = await _remote.fetchAchievements(userId);
-
-      return rows.map((row) {
-        final data = row['achievements'] as Map<String, dynamic>;
-
-        final unlockedAt = row['unlocked_at'] == null
-            ? null
-            : DateTime.tryParse(
-                row['unlocked_at'] as String,
-              );
-
-        return Achievement.fromMap(
-          data,
-          unlockedAt: unlockedAt,
-        );
-      }).toList();
-    } catch (e, stack) {
-      debugPrint(
-        'Achievement load failed: $e',
-      );
-      debugPrintStack(
-        stackTrace: stack,
-      );
-      return [];
-    }
   }
 
   void _startConnectivityListener() {
@@ -347,6 +348,7 @@ class AppController extends AsyncNotifier<AppState> {
 
     final userId = SupabaseService.currentSession?.user.id;
 
+    // Always save locally first.
     await _local.savePrefs(
       userId,
       {
@@ -354,12 +356,14 @@ class AppController extends AsyncNotifier<AppState> {
       },
     );
 
+    // Update UI immediately.
     state = AsyncData(
       current.copyWith(
         dailyGoal: value,
       ),
     );
 
+    // Then save to Supabase if signed in.
     if (userId != null) {
       try {
         await _remote.saveDailyGoal(
@@ -370,9 +374,7 @@ class AppController extends AsyncNotifier<AppState> {
         debugPrint(
           'Daily goal cloud sync failed: $e',
         );
-        debugPrintStack(
-          stackTrace: stack,
-        );
+        debugPrintStack(stackTrace: stack);
       }
     }
   }
@@ -396,6 +398,7 @@ class AppController extends AsyncNotifier<AppState> {
       clearCompletedAt: !completed,
     );
 
+    // Update UI immediately.
     state = AsyncData(
       current.copyWith(
         progress: updated,
@@ -404,212 +407,199 @@ class AppController extends AsyncNotifier<AppState> {
 
     final userId = SupabaseService.currentSession?.user.id;
 
+    // Save locally first.
     await _local.saveProgress(
       userId,
       updated,
     );
 
-    await _sync(
-      problem,
-      updated[problem.id]!,
-    );
-
-    // Only evaluate achievements when a problem
-    // is actually being completed.
+    // Check achievements immediately after completion.
     if (completed && userId != null) {
       await _checkAchievements(
         updated,
         userId,
       );
     }
+
+    // Upload or queue for later.
+    await _sync(
+      problem,
+      updated[problem.id]!,
+    );
   }
 
   Future<void> _checkAchievements(
     Map<String, ProblemProgress> progress,
     String userId,
   ) async {
-    final current = state.value!;
-
-    if (current.achievements.isEmpty) {
-      return;
-    }
-
-    final completedProblems = current.problems
-        .where(
-          (p) => progress[p.id]?.completed == true,
-        )
-        .toList();
-
-    final completedCount = completedProblems.length;
-
-    final unlockedIds =
-        current.achievements.where((a) => a.unlocked).map((a) => a.id).toSet();
-
-    final newlyUnlocked = <Achievement>[];
-
-    for (final achievement in current.achievements) {
-      if (unlockedIds.contains(achievement.id)) {
-        continue;
-      }
-
-      final shouldUnlock = _achievementConditionMet(
-        achievement,
-        completedProblems,
-        completedCount,
-        current.problems,
-        current.currentStreak,
-      );
-
-      if (shouldUnlock) {
-        newlyUnlocked.add(
-          achievement,
-        );
-      }
-    }
-
-    if (newlyUnlocked.isEmpty) {
-      return;
-    }
-
-    final now = DateTime.now();
-
-    final updatedAchievements = current.achievements.map((achievement) {
-      final unlocked = newlyUnlocked.any(
-        (a) => a.id == achievement.id,
-      );
-
-      if (!unlocked) {
-        return achievement;
-      }
-
-      return Achievement(
-        id: achievement.id,
-        name: achievement.name,
-        description: achievement.description,
-        icon: achievement.icon,
-        unlockedAt: now,
-      );
-    }).toList();
-
-    state = AsyncData(
-      current.copyWith(
-        achievements: updatedAchievements,
-      ),
-    );
-
     try {
+      var current = state.value!;
+
+      // Make sure achievement definitions are available.
+      if (current.achievements.isEmpty) {
+        final rows = await _remote.fetchAchievements(userId);
+
+        final loadedAchievements = rows.map((row) {
+          final data = Map<String, dynamic>.from(row['achievements'] as Map);
+
+          final unlockedAtRaw = row['unlocked_at'];
+
+          return Achievement.fromMap(
+            data,
+            unlockedAt: unlockedAtRaw == null
+                ? null
+                : DateTime.tryParse(
+                    unlockedAtRaw.toString(),
+                  ),
+          );
+        }).toList();
+
+        if (loadedAchievements.isEmpty) {
+          debugPrint(
+            'Achievement check skipped: no definitions loaded.',
+          );
+          return;
+        }
+
+        state = AsyncData(
+          current.copyWith(
+            achievements: loadedAchievements,
+          ),
+        );
+
+        current = state.value!;
+      }
+
+      final completedProblems = current.problems
+          .where(
+            (p) => progress[p.id]?.completed == true,
+          )
+          .toList();
+
+      final completedCount = completedProblems.length;
+
+      debugPrint(
+        'Achievement check: '
+        '$completedCount completed, '
+        '${current.achievements.length} definitions loaded.',
+      );
+
+      final newlyUnlocked = <Achievement>[];
+
+      for (final achievement in current.achievements) {
+        if (achievement.unlocked) {
+          continue;
+        }
+
+        final name = achievement.name.trim().toLowerCase();
+
+        bool shouldUnlock = false;
+
+        switch (name) {
+          case 'first blood':
+            shouldUnlock = completedCount >= 1;
+            break;
+
+          case 'getting started':
+            shouldUnlock = completedCount >= 10;
+            break;
+
+          case 'momentum':
+            shouldUnlock = completedCount >= 25;
+            break;
+
+          case 'brain builder':
+            shouldUnlock = completedCount >= 50;
+            break;
+
+          case 'halfway there':
+            shouldUnlock = completedCount >= 75;
+            break;
+
+          case 'neetcode master':
+            shouldUnlock = completedCount >= 150;
+            break;
+
+          case 'tree climber':
+            shouldUnlock = completedProblems.any(
+              (p) => p.topic.toLowerCase().contains('tree'),
+            );
+            break;
+
+          case 'graph explorer':
+            shouldUnlock = completedProblems.any(
+              (p) => p.topic.toLowerCase().contains('graph'),
+            );
+            break;
+
+          case 'dp warrior':
+            shouldUnlock = completedProblems.any(
+              (p) =>
+                  p.topic.toLowerCase().contains('dynamic') ||
+                  p.topic.toLowerCase().contains('dp'),
+            );
+            break;
+        }
+
+        debugPrint(
+          'Achievement "${achievement.name}": $shouldUnlock',
+        );
+
+        if (shouldUnlock) {
+          newlyUnlocked.add(achievement);
+        }
+      }
+
+      if (newlyUnlocked.isEmpty) {
+        return;
+      }
+
+      final now = DateTime.now();
+
+      final updatedAchievements = current.achievements.map((achievement) {
+        final unlock = newlyUnlocked.any(
+          (a) => a.id == achievement.id,
+        );
+
+        if (!unlock) {
+          return achievement;
+        }
+
+        return Achievement(
+          id: achievement.id,
+          name: achievement.name,
+          description: achievement.description,
+          icon: achievement.icon,
+          unlockedAt: now,
+        );
+      }).toList();
+
+      // Update UI immediately.
+      state = AsyncData(
+        current.copyWith(
+          achievements: updatedAchievements,
+        ),
+      );
+
+      // Persist unlocks.
       await _remote.unlockAchievements(
         userId,
         newlyUnlocked.map((a) => a.id).toList(),
       );
 
-      debugPrint(
-        'Unlocked ${newlyUnlocked.length} achievement(s).',
-      );
-
       for (final achievement in newlyUnlocked) {
         debugPrint(
-          '🏆 ${achievement.name}',
+          '🏆 Achievement unlocked: ${achievement.name}',
         );
       }
     } catch (e, stack) {
       debugPrint(
-        'Achievement sync failed: $e',
+        'Achievement check failed: $e',
       );
       debugPrintStack(
         stackTrace: stack,
       );
     }
-  }
-
-  bool _achievementConditionMet(
-    Achievement achievement,
-    List<Problem> completedProblems,
-    int completedCount,
-    List<Problem> allProblems,
-    int currentStreak,
-  ) {
-    switch (achievement.id) {
-      // ⚔️ First Blood
-      case '0c10b13f-e664-46cf-9261-953126cfa001':
-        return completedCount >= 1;
-
-      // 🚀 Getting Started
-      case 'af5de5e5-3151-491b-8e06-fd5fafb4622b':
-        return completedCount >= 10;
-
-      // 🔥 Momentum
-      case 'ef0f3651-3e56-4edb-ae3c-3901db43d3bb':
-        return completedCount >= 25;
-
-      // 🧠 Brain Builder
-      case '4bc8e69c-9cbf-4317-a6dd-0dbeb2fa7c03':
-        return completedCount >= 50;
-
-      // 🏁 Halfway There
-      case '015be0ea-64cd-476a-982d-cf769983e484':
-        return completedCount >= 75;
-
-      // 👑 NeetCode Master
-      case '83ca92d2-d5d8-4f2e-a70b-5bd20f4be37e':
-        return completedCount >= 150;
-
-      // 🌲 Tree Climber
-      case 'a0b02d91-60bb-417b-8c57-21097ab08587':
-        return _completedEntireTopic(
-          'Trees',
-          completedProblems,
-          allProblems,
-        );
-
-      // 🕸️ Graph Explorer
-      case '2022a003-879e-454f-bcf7-e2f05d984adc':
-        return _completedEntireTopic(
-          'Graphs',
-          completedProblems,
-          allProblems,
-        );
-
-      // ⚡ DP Warrior
-      // ⚡ DP Warrior
-      case '4c708a9f-5d5a-44e5-a5b5-02fe0b9b44e5':
-        final dpProblems = allProblems.where(
-          (p) =>
-              p.topic.toLowerCase() == '1-d dynamic programming' ||
-              p.topic.toLowerCase() == '2-d dynamic programming',
-        );
-
-        return dpProblems.every(
-          (problem) => completedProblems.any(
-            (completed) => completed.id == problem.id,
-          ),
-        );
-
-      default:
-        return false;
-    }
-  }
-
-  bool _completedEntireTopic(
-    String topic,
-    List<Problem> completedProblems,
-    List<Problem> allProblems,
-  ) {
-    final topicProblems = allProblems
-        .where(
-          (p) => p.topic.toLowerCase() == topic.toLowerCase(),
-        )
-        .toList();
-
-    if (topicProblems.isEmpty) {
-      return false;
-    }
-
-    return topicProblems.every(
-      (problem) => completedProblems.any(
-        (completed) => completed.id == problem.id,
-      ),
-    );
   }
 
   Future<void> saveNotes(
@@ -738,6 +728,8 @@ class AppController extends AsyncNotifier<AppState> {
         progress,
       );
 
+      // Cloud upload succeeded, so remove any
+      // previous queued operation for this problem.
       await _local.removeSyncOperation(
         user.id,
         problem.id,
@@ -752,10 +744,10 @@ class AppController extends AsyncNotifier<AppState> {
       debugPrint(
         'Progress sync failed: $e',
       );
-      debugPrintStack(
-        stackTrace: stack,
-      );
+      debugPrintStack(stackTrace: stack);
 
+      // Local state is already safe.
+      // Queue the latest state for retry.
       await _local.enqueueSync(
         user.id,
         problem.id,
@@ -780,9 +772,7 @@ class AppController extends AsyncNotifier<AppState> {
     _flushInProgress = true;
 
     try {
-      final queue = await _local.loadSyncQueue(
-        user.id,
-      );
+      final queue = await _local.loadSyncQueue(user.id);
 
       if (queue.isEmpty) return;
 
@@ -836,13 +826,11 @@ class AppController extends AsyncNotifier<AppState> {
           );
 
           debugPrint(
-            'Offline sync successful: '
-            '${problem.title}',
+            'Offline sync successful: ${problem.title}',
           );
         } catch (e, stack) {
           debugPrint(
-            'Offline sync failed. '
-            'Keeping operation queued: $e',
+            'Offline sync failed. Keeping operation queued: $e',
           );
           debugPrintStack(
             stackTrace: stack,
@@ -862,6 +850,64 @@ class AppController extends AsyncNotifier<AppState> {
     }
   }
 
+  Future<void> saveInterviewAttempt({
+    required Problem problem,
+    required int questionNumber,
+    required String question,
+    required String answer,
+    required String feedback,
+    required int? score,
+    required bool sessionCompleted,
+  }) async {
+    final userId = SupabaseService.currentSession?.user.id;
+
+    if (userId == null) {
+      throw StateError('You must be signed in to save interview history.');
+    }
+
+    await _remote.saveInterviewAttempt(
+      userId: userId,
+      problem: problem,
+      questionNumber: questionNumber,
+      question: question,
+      answer: answer,
+      feedback: feedback,
+      score: score,
+      sessionCompleted: sessionCompleted,
+    );
+
+    if (sessionCompleted && state.hasValue) {
+      final current = state.value!;
+      final updated = <String>{
+        ...current.interviewedProblemIds,
+        problem.id,
+      };
+
+      state = AsyncData(
+        current.copyWith(
+          interviewedProblemIds: updated,
+        ),
+      );
+    }
+  }
+
+  Future<void> refreshInterviewHistory() async {
+    final userId = SupabaseService.currentSession?.user.id;
+    if (userId == null || !state.hasValue) return;
+
+    try {
+      final ids = await _remote.fetchCompletedInterviewProblemIds(userId);
+      state = AsyncData(
+        state.value!.copyWith(
+          interviewedProblemIds: ids,
+        ),
+      );
+    } catch (e, stack) {
+      debugPrint('Interview history sync failed: $e');
+      debugPrintStack(stackTrace: stack);
+    }
+  }
+
   Future<void> syncFromCloud() async {
     final user = SupabaseService.currentSession?.user;
 
@@ -876,11 +922,18 @@ class AppController extends AsyncNotifier<AppState> {
         ),
       );
 
+      // Upload any pending offline changes first.
       await _flushPendingSync();
 
-      final rows = await _remote.fetchProgress(
-        user.id,
-      );
+      Set<String> interviewIds = current.interviewedProblemIds;
+      try {
+        interviewIds = await _remote.fetchCompletedInterviewProblemIds(user.id);
+      } catch (e, stack) {
+        debugPrint('Interview history refresh failed: $e');
+        debugPrintStack(stackTrace: stack);
+      }
+
+      final rows = await _remote.fetchProgress(user.id);
 
       final updated = Map<String, ProblemProgress>.from(
         current.progress,
@@ -917,15 +970,11 @@ class AppController extends AsyncNotifier<AppState> {
         updated,
       );
 
-      final achievements = await _loadAchievements(
-        user.id,
-      );
-
       state = AsyncData(
         current.copyWith(
           progress: updated,
-          achievements: achievements,
           syncing: false,
+          interviewedProblemIds: interviewIds,
         ),
       );
     } catch (e, stack) {

@@ -4,6 +4,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'interview_screen.dart';
+
 import '../models/problem.dart';
 import '../providers/app_controller.dart';
 import '../services/ai_coach_service.dart';
@@ -287,6 +289,45 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
                 ),
               ),
 
+              const SizedBox(height: 10),
+
+              // -----------------------------------------------------------------
+              // INTERVIEW ME
+              // -----------------------------------------------------------------
+
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton.icon(
+                  onPressed: progress.completed
+                      ? () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => InterviewScreen(
+                                initialProblem: widget.problem,
+                              ),
+                            ),
+                          );
+                        }
+                      : null,
+                  icon: const Icon(
+                    Icons.mic_none_rounded,
+                    size: 20,
+                  ),
+                  label: Text(
+                    progress.completed
+                        ? 'Interview Me'
+                        : 'Complete problem to interview',
+                    style: humanTextStyle(
+                      color: progress.completed ? acid : muted,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+
               const SizedBox(height: 26),
 
               // -----------------------------------------------------------------
@@ -389,6 +430,10 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
       },
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // AI COACH
+  // ---------------------------------------------------------------------------
 
   String? get _currentAiText {
     switch (_aiMode) {
@@ -931,6 +976,10 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
     return '${diff.inDays} days ago';
   }
 }
+
+// =============================================================================
+// AI COACH CARD
+// =============================================================================
 
 class _AiFormattedText extends StatelessWidget {
   final String text;
