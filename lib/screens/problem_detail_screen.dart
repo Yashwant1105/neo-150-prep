@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../models/problem.dart';
 import '../providers/app_controller.dart';
+import '../services/ai_coach_service.dart';
 import '../widgets/ui.dart';
 import '../widgets/app_theme.dart';
 
@@ -23,6 +24,21 @@ class ProblemDetailScreen extends ConsumerStatefulWidget {
 
 class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
   late final TextEditingController notes;
+
+  // ---------------------------------------------------------------------------
+  // AI COACH STATE
+  // ---------------------------------------------------------------------------
+
+  bool _aiLoading = false;
+
+  // Cache each AI response separately.
+  // Moving between already-generated hints/approach never calls Gemini again.
+  String? _hint1Text;
+  String? _hint2Text;
+  String? _approachText;
+
+  // The currently visible AI Coach mode.
+  String? _aiMode;
 
   @override
   void initState() {
@@ -273,6 +289,45 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
               const SizedBox(height: 26),
 
               // -----------------------------------------------------------------
+              // AI COACH
+              // -----------------------------------------------------------------
+
+              _AiCoachCard(
+                loading: _aiLoading,
+                text: _currentAiText,
+                mode: _aiMode,
+                onHint:
+                    _aiMode == null ? () => _askAiCoach(mode: 'hint1') : null,
+                onDeeperHint: _aiMode == 'hint1'
+                    ? () => _askAiCoach(mode: 'hint2')
+                    : null,
+                onApproach: (_aiMode == 'hint1' || _aiMode == 'hint2')
+                    ? () => _askAiCoach(mode: 'approach')
+                    : null,
+                backLabel: _aiMode == 'approach'
+                    ? (_hint2Text != null ? 'Hint 02' : 'Hint 01')
+                    : 'Hint 01',
+                onBack: _aiMode == 'approach'
+                    ? () {
+                        final previousMode =
+                            _hint2Text != null ? 'hint2' : 'hint1';
+
+                        setState(() {
+                          _aiMode = previousMode;
+                        });
+                      }
+                    : _aiMode == 'hint2'
+                        ? () {
+                            setState(() {
+                              _aiMode = 'hint1';
+                            });
+                          }
+                        : null,
+              ),
+
+              const SizedBox(height: 28),
+
+              // -----------------------------------------------------------------
               // NOTES
               // -----------------------------------------------------------------
 
@@ -334,6 +389,168 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
     );
   }
 
+  String? get _currentAiText {
+    switch (_aiMode) {
+      case 'hint1':
+        return _hint1Text;
+      case 'hint2':
+        return _hint2Text;
+      case 'approach':
+        return _approachText;
+      default:
+        return null;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // AI COACH
+  // ---------------------------------------------------------------------------
+
+  Future<void> _askAiCoach({
+    required String mode,
+  }) async {
+    if (_aiLoading) {
+      return;
+    }
+
+    // If this response was already generated, just show the cached result.
+    // This guarantees that navigation never triggers another Gemini call.
+    final cachedText = switch (mode) {
+      'hint1' => _hint1Text,
+      'hint2' => _hint2Text,
+      'approach' => _approachText,
+      _ => null,
+    };
+
+    if (cachedText != null && cachedText.isNotEmpty) {
+      setState(() {
+        _aiMode = mode;
+      });
+      return;
+    }
+
+    setState(() {
+      _aiLoading = true;
+      _aiMode = mode;
+    });
+
+    try {
+      final text = await AiCoachService().getHint(
+        title: widget.problem.title,
+        topic: widget.problem.topic,
+        difficulty: widget.problem.difficulty,
+        mode: mode,
+        notes: notes.text.trim(),
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      final cleaned = _cleanAiResponse(text, mode);
+
+      setState(() {
+        switch (mode) {
+          case 'hint1':
+            _hint1Text = cleaned;
+            break;
+          case 'hint2':
+            _hint2Text = cleaned;
+            break;
+          case 'approach':
+            _approachText = cleaned;
+            break;
+        }
+
+        _aiMode = mode;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      // Return to the previous successfully generated state if the request
+      // fails, rather than leaving the user on a blank AI Coach card.
+      setState(() {
+        _aiMode = _hint2Text != null
+            ? 'hint2'
+            : _hint1Text != null
+                ? 'hint1'
+                : null;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'AI Coach unavailable. Try again.',
+            style: humanTextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _aiLoading = false;
+        });
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // AI RESPONSE CLEANUP
+  // ---------------------------------------------------------------------------
+
+  String _cleanAiResponse(
+    String value,
+    String mode,
+  ) {
+    var cleaned = value.trim();
+
+    // The UI already supplies the section label, so don't repeat it.
+    cleaned = cleaned.replaceFirst(
+      RegExp(
+        r"""^(?:welcome to neo 150 prep[!,.]?\s*)?(?:let['’]s\s+)?(?:tackle\s+)?(?:the\s+)?(?:problem|valid anagram)[.!:]?\s*""",
+        caseSensitive: false,
+      ),
+      '',
+    );
+
+    // Remove common conversational endings that make the card feel like chat.
+    cleaned = cleaned.replaceFirst(
+      RegExp(
+        r"""\s*(?:would you like|want me to|do you want)\b.*$""",
+        caseSensitive: false,
+        dotAll: true,
+      ),
+      '',
+    );
+
+    // Strip Markdown formatting because the card is plain Flutter Text.
+    cleaned = cleaned
+        .replaceAll(RegExp(r'\*\*'), '')
+        .replaceAll(RegExp(r'`{1,3}'), '')
+        .replaceAll(RegExp(r'^\s*[-*]\s+', multiLine: true), '')
+        .replaceAll(RegExp(r'^\s*#{1,6}\s+', multiLine: true), '')
+        .replaceAll(RegExp(r'\n{3,}'), '\n\n')
+        .trim();
+
+    if (mode == 'approach') {
+      // Keep the approach instructional and direct.
+      cleaned = cleaned.replaceFirst(
+        RegExp(
+          r"""^here(?: is|['’]s) (?:the )?(?:high[- ]level )?approach[:.]?\s*""",
+          caseSensitive: false,
+        ),
+        '',
+      );
+    }
+
+    return cleaned.isEmpty ? value.trim() : cleaned;
+  }
+
   // ---------------------------------------------------------------------------
   // REVIEW TOGGLE
   // ---------------------------------------------------------------------------
@@ -341,7 +558,9 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
   Future<void> _toggleReview(
     bool isCurrentlyFlagged,
   ) async {
-    final controller = ref.read(appControllerProvider.notifier);
+    final controller = ref.read(
+      appControllerProvider.notifier,
+    );
 
     if (isCurrentlyFlagged) {
       await controller.clearReview(
@@ -385,7 +604,9 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
   Future<void> _toggleCompletion(
     bool wasCompleted,
   ) async {
-    final controller = ref.read(appControllerProvider.notifier);
+    final controller = ref.read(
+      appControllerProvider.notifier,
+    );
 
     await controller.toggleComplete(
       widget.problem,
@@ -436,7 +657,9 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
       barrierColor: Colors.black.withValues(
         alpha: 0.78,
       ),
-      transitionDuration: const Duration(milliseconds: 350),
+      transitionDuration: const Duration(
+        milliseconds: 350,
+      ),
       pageBuilder: (
         dialogContext,
         animation,
@@ -595,6 +818,239 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
     }
 
     return '${diff.inDays} days ago';
+  }
+}
+
+// =============================================================================
+// AI COACH CARD
+// =============================================================================
+
+class _AiCoachCard extends StatelessWidget {
+  final bool loading;
+  final String? text;
+  final String? mode;
+
+  final VoidCallback? onHint;
+  final VoidCallback? onDeeperHint;
+  final VoidCallback? onApproach;
+  final VoidCallback? onBack;
+  final String? backLabel;
+
+  const _AiCoachCard({
+    required this.loading,
+    required this.text,
+    required this.mode,
+    required this.onHint,
+    required this.onDeeperHint,
+    required this.onApproach,
+    required this.onBack,
+    this.backLabel,
+  });
+
+  String get _label {
+    switch (mode) {
+      case 'hint1':
+        return 'HINT 01';
+      case 'hint2':
+        return 'HINT 02';
+      case 'approach':
+        return 'APPROACH';
+      default:
+        return 'AI COACH';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: acid.withValues(alpha: 0.22),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: acid.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: SvgPicture.asset(
+                  'assets/icons/core/ai_coach.svg',
+                  width: 24,
+                  height: 24,
+                ),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'AI COACH',
+                      style: technicalTextStyle(
+                        color: acid,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.7,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Stuck? Get a nudge, not the answer.',
+                      style: humanTextStyle(
+                        color: muted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (loading) ...[
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                const SizedBox(
+                  width: 17,
+                  height: 17,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: acid,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Thinking...',
+                  style: humanTextStyle(
+                    color: muted,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (!loading && text != null) ...[
+            const SizedBox(height: 18),
+            Text(
+              _label,
+              style: technicalTextStyle(
+                color: acid,
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.5,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              text!,
+              style: humanTextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                height: 1.45,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          const SizedBox(height: 18),
+          if (!loading && text == null && onHint != null)
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: FilledButton.icon(
+                onPressed: onHint,
+                icon: SvgPicture.asset(
+                  'assets/icons/core/ai_coach.svg',
+                  width: 19,
+                  height: 19,
+                  colorFilter: const ColorFilter.mode(
+                    ink,
+                    BlendMode.srcIn,
+                  ),
+                ),
+                label: Text(
+                  'Get a hint',
+                  style: humanTextStyle(
+                    color: ink,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ),
+          if (!loading &&
+              text != null &&
+              (onDeeperHint != null || onApproach != null))
+            Row(
+              children: [
+                if (onDeeperHint != null)
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: onDeeperHint,
+                      child: Text(
+                        'Deeper hint',
+                        style: humanTextStyle(
+                          color: acid,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                if (onDeeperHint != null && onApproach != null)
+                  const SizedBox(width: 10),
+                if (onApproach != null)
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: onApproach,
+                      child: Text(
+                        'Show approach',
+                        style: humanTextStyle(
+                          color: acid,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          if (!loading && text != null && onBack != null) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                onPressed: onBack,
+                icon: const Icon(
+                  Icons.arrow_back_rounded,
+                  size: 17,
+                  color: muted,
+                ),
+                label: Text(
+                  mode == 'approach' ? 'Back to $backLabel' : 'Back to Hint 01',
+                  style: humanTextStyle(
+                    color: muted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }
 

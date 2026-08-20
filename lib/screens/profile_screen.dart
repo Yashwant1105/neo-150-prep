@@ -401,12 +401,12 @@ class ProfileScreen extends ConsumerWidget {
         '  ',
       ).convert(payload);
 
-      fileName = 'mins_prep_progress.json';
+      fileName = 'neo_150_prep_progress.json';
       mimeType = 'application/json';
     } else {
       content = _buildCsv(payload);
 
-      fileName = 'mins_prep_progress.csv';
+      fileName = 'neo_150_prep_progress.csv';
       mimeType = 'text/csv';
     }
 
