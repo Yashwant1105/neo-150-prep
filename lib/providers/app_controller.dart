@@ -13,6 +13,23 @@ import '../services/supabase_service.dart';
 final appControllerProvider =
     AsyncNotifierProvider<AppController, AppState>(AppController.new);
 
+enum DailyPrepType {
+  review,
+  solve,
+  interview,
+  weakTopic,
+}
+
+class DailyPrepRecommendation {
+  final Problem problem;
+  final DailyPrepType type;
+
+  const DailyPrepRecommendation({
+    required this.problem,
+    required this.type,
+  });
+}
+
 class AppState {
   final List<Problem> problems;
   final Map<String, ProblemProgress> progress;
@@ -20,6 +37,8 @@ class AppState {
   final bool syncing;
   final Set<String> interviewedProblemIds;
   final List<Achievement> achievements;
+  final List<String> dailyPrepProblemIds;
+  final String? dailyPrepDate;
 
   const AppState({
     required this.problems,
@@ -28,6 +47,8 @@ class AppState {
     this.syncing = false,
     this.interviewedProblemIds = const <String>{},
     this.achievements = const <Achievement>[],
+    this.dailyPrepProblemIds = const <String>[],
+    this.dailyPrepDate,
   });
 
   int get completed => progress.values.where((p) => p.completed).length;
@@ -160,12 +181,128 @@ class AppState {
   bool hasCompletedInterview(String problemId) =>
       interviewedProblemIds.contains(problemId);
 
+  /// Returns today's fixed Daily Prep plan.
+  ///
+  /// The plan is generated once per day and persisted by AppController.
+  /// Completion changes the visual state of a task but never swaps that task
+  /// out for another problem during the same day.
+  List<DailyPrepRecommendation> get dailyPrep {
+    if (dailyGoal <= 0 || problems.isEmpty) {
+      return const <DailyPrepRecommendation>[];
+    }
+
+    final problemById = <String, Problem>{
+      for (final problem in problems) problem.id: problem,
+    };
+
+    final recommendations = <DailyPrepRecommendation>[];
+
+    for (final id in dailyPrepProblemIds.take(dailyGoal)) {
+      final problem = problemById[id];
+      if (problem == null) continue;
+
+      final progress = this.progress[problem.id];
+      final due = progress?.reviewDueAt;
+      final isDue = due != null && !due.isAfter(DateTime.now());
+
+      recommendations.add(
+        DailyPrepRecommendation(
+          problem: problem,
+          type: isDue ? DailyPrepType.review : DailyPrepType.solve,
+        ),
+      );
+    }
+
+    return recommendations;
+  }
+
+  /// Builds a deterministic plan for a new day.
+  ///
+  /// Priority: review due -> new/incomplete -> weak topic -> remaining.
+  /// The resulting IDs are persisted so the plan stays stable for the day.
+  List<String> buildDailyPrepPlan() {
+    if (dailyGoal <= 0 || problems.isEmpty) {
+      return const <String>[];
+    }
+
+    final selectedIds = <String>{};
+    final result = <String>[];
+
+    void add(Problem problem) {
+      if (result.length >= dailyGoal) return;
+      if (selectedIds.add(problem.id)) {
+        result.add(problem.id);
+      }
+    }
+
+    final reviews = problems.where((problem) {
+      final due = progress[problem.id]?.reviewDueAt;
+      return due != null && !due.isAfter(DateTime.now());
+    }).toList()
+      ..sort((a, b) {
+        final aDue = progress[a.id]!.reviewDueAt!;
+        final bDue = progress[b.id]!.reviewDueAt!;
+        final compare = aDue.compareTo(bDue);
+        return compare != 0 ? compare : a.order.compareTo(b.order);
+      });
+
+    for (final problem in reviews) {add(problem);}
+
+    final newProblems = problems
+        .where((problem) => !(progress[problem.id]?.completed ?? false))
+        .toList()
+      ..sort((a, b) => a.order.compareTo(b.order));
+
+    for (final problem in newProblems) {add(problem);}
+
+    final topicTotals = <String, int>{};
+    final topicCompleted = <String, int>{};
+    final weakCandidates = <Problem>[];
+
+    for (final problem in problems) {
+      topicTotals[problem.topic] = (topicTotals[problem.topic] ?? 0) + 1;
+      if (progress[problem.id]?.completed == true) {
+        topicCompleted[problem.topic] =
+            (topicCompleted[problem.topic] ?? 0) + 1;
+      }
+
+      final due = progress[problem.id]?.reviewDueAt;
+      final isDue = due != null && !due.isAfter(DateTime.now());
+
+      if (!selectedIds.contains(problem.id) &&
+          progress[problem.id]?.completed == true &&
+          !isDue) {
+        weakCandidates.add(problem);
+      }
+    }
+
+    weakCandidates.sort((a, b) {
+      final aRate =
+          (topicCompleted[a.topic] ?? 0) / (topicTotals[a.topic] ?? 1);
+      final bRate =
+          (topicCompleted[b.topic] ?? 0) / (topicTotals[b.topic] ?? 1);
+      final compare = aRate.compareTo(bRate);
+      return compare != 0 ? compare : a.order.compareTo(b.order);
+    });
+
+    for (final problem in weakCandidates) {add(problem);}
+
+    // Safe fallback if the user has completed almost everything.
+    final remaining = problems.toList()
+      ..sort((a, b) => a.order.compareTo(b.order));
+    for (final problem in remaining) add(problem);
+
+    return result;
+  }
+
   AppState copyWith({
     Map<String, ProblemProgress>? progress,
     int? dailyGoal,
     bool? syncing,
     Set<String>? interviewedProblemIds,
     List<Achievement>? achievements,
+    List<String>? dailyPrepProblemIds,
+    String? dailyPrepDate,
   }) {
     return AppState(
       problems: problems,
@@ -175,6 +312,8 @@ class AppState {
       interviewedProblemIds:
           interviewedProblemIds ?? this.interviewedProblemIds,
       achievements: achievements ?? this.achievements,
+      dailyPrepProblemIds: dailyPrepProblemIds ?? this.dailyPrepProblemIds,
+      dailyPrepDate: dailyPrepDate ?? this.dailyPrepDate,
     );
   }
 
@@ -293,12 +432,9 @@ class AppController extends AsyncNotifier<AppState> {
         if (cloudDailyGoal != null) {
           dailyGoal = cloudDailyGoal;
 
-          await _local.savePrefs(
-            userId,
-            {
-              'dailyGoal': dailyGoal,
-            },
-          );
+          final updatedPrefs = await _local.loadPrefs(userId);
+          updatedPrefs['dailyGoal'] = dailyGoal;
+          await _local.savePrefs(userId, updatedPrefs);
         } else {
           // First login/device: upload the locally stored goal.
           await _remote.saveDailyGoal(
@@ -314,12 +450,43 @@ class AppController extends AsyncNotifier<AppState> {
       }
     }
 
+    final todayKey = AppState._dayKey(DateTime.now());
+    final savedPlanDate = prefs['dailyPrepDate']?.toString();
+    final savedPlanRaw = prefs['dailyPrepProblemIds'];
+    var dailyPrepProblemIds = savedPlanRaw is List
+        ? savedPlanRaw.map((e) => e.toString()).toList()
+        : <String>[];
+
+    // Generate a fresh plan once per day, or when the saved plan no longer
+    // matches the current Daily Goal.
+    if (savedPlanDate != todayKey ||
+        dailyPrepProblemIds.length != dailyGoal ||
+        dailyPrepProblemIds.any((id) => !problems.any((p) => p.id == id))) {
+      final planningState = AppState(
+        problems: problems,
+        progress: progress,
+        dailyGoal: dailyGoal,
+        interviewedProblemIds: interviewedProblemIds,
+        achievements: achievements,
+      );
+
+      dailyPrepProblemIds = planningState.buildDailyPrepPlan();
+
+      final existingPrefs = Map<String, dynamic>.from(prefs);
+      existingPrefs['dailyGoal'] = dailyGoal;
+      existingPrefs['dailyPrepDate'] = todayKey;
+      existingPrefs['dailyPrepProblemIds'] = dailyPrepProblemIds;
+      await _local.savePrefs(userId, existingPrefs);
+    }
+
     return AppState(
       problems: problems,
       progress: progress,
       dailyGoal: dailyGoal,
       interviewedProblemIds: interviewedProblemIds,
       achievements: achievements,
+      dailyPrepProblemIds: dailyPrepProblemIds,
+      dailyPrepDate: todayKey,
     );
   }
 
@@ -349,17 +516,29 @@ class AppController extends AsyncNotifier<AppState> {
     final userId = SupabaseService.currentSession?.user.id;
 
     // Always save locally first.
+    final prefs = await _local.loadPrefs(userId);
+    prefs['dailyGoal'] = value;
+    prefs['dailyPrepDate'] = null;
+    prefs['dailyPrepProblemIds'] = <String>[];
     await _local.savePrefs(
       userId,
-      {
-        'dailyGoal': value,
-      },
+      prefs,
     );
+
+    // Generate a new plan for the new goal immediately.
+    final planningState = current.copyWith(
+      dailyGoal: value,
+      dailyPrepProblemIds: const <String>[],
+      dailyPrepDate: null,
+    );
+    final newPlan = planningState.buildDailyPrepPlan();
 
     // Update UI immediately.
     state = AsyncData(
       current.copyWith(
         dailyGoal: value,
+        dailyPrepProblemIds: newPlan,
+        dailyPrepDate: AppState._dayKey(DateTime.now()),
       ),
     );
 

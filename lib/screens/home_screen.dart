@@ -891,31 +891,8 @@ class _DailyPrep extends StatelessWidget {
     required this.state,
   });
 
-  List<Problem> _getPrepProblems() {
-    final result = <Problem>[];
-
-    // Keep the first problem due for review at the top.
-    if (state.dueReviews.isNotEmpty) {
-      result.add(state.dueReviews.first);
-    }
-
-    // Then add the next problems.
-    //
-    // IMPORTANT:
-    // Completed problems are intentionally NOT filtered out here.
-    // This allows a completed daily-prep task to remain visible and
-    // receive its completed/tangerine visual state.
-    for (final problem in state.problems) {
-      if (!result.any((p) => p.id == problem.id)) {
-        result.add(problem);
-      }
-
-      if (result.length >= 2) {
-        break;
-      }
-    }
-
-    return result.take(2).toList();
+  List<DailyPrepRecommendation> _getPrepRecommendations() {
+    return state.dailyPrep;
   }
 
   void _openProblem(
@@ -952,7 +929,7 @@ class _DailyPrep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final prepProblems = _getPrepProblems();
+    final prepRecommendations = _getPrepRecommendations();
 
     final goal = state.dailyGoal;
     final completedToday = state.todayCompleted;
@@ -961,8 +938,8 @@ class _DailyPrep extends StatelessWidget {
 
     final progress = goal <= 0 ? 0.0 : (completedToday / goal).clamp(0.0, 1.0);
 
-    // Interview advances independently from the solve list. Prefer the first
-    // completed problem that has not yet had a completed interview.
+    // Interview remains an independent practice action so the existing
+    // interview persistence and rotation are unchanged.
     final interviewProblem = state.nextInterviewProblem;
 
     return GlowCard(
@@ -1050,53 +1027,58 @@ class _DailyPrep extends StatelessWidget {
           // PROBLEM TASKS
           // -------------------------------------------------------------------
 
-          if (prepProblems.isNotEmpty)
+          if (prepRecommendations.isNotEmpty)
             ...List.generate(
-              prepProblems.length,
+              prepRecommendations.length,
               (index) {
-                final problem = prepProblems[index];
-
-                final isReview = state.dueReviews.any(
-                  (p) => p.id == problem.id,
-                );
-
+                final recommendation = prepRecommendations[index];
+                final problem = recommendation.problem;
+                final isReview =
+                    recommendation.type == DailyPrepType.review;
+                final isWeakTopic =
+                    recommendation.type == DailyPrepType.weakTopic;
                 final isCompleted =
                     state.progress[problem.id]?.completed ?? false;
 
+                final type = isCompleted
+                    ? 'COMPLETED'
+                    : isReview
+                        ? 'REVIEW'
+                        : isWeakTopic
+                            ? 'FOCUS'
+                            : 'SOLVE';
+
                 return Padding(
                   padding: EdgeInsets.only(
-                    bottom: index == prepProblems.length - 1 ? 0 : 10,
+                    bottom: index == prepRecommendations.length - 1 ? 0 : 10,
                   ),
                   child: _DailyPrepTask(
                     number: index + 1,
-                    type: isCompleted
-                        ? 'COMPLETED'
-                        : isReview
-                            ? 'REVIEW'
-                            : 'SOLVE',
+                    type: type,
                     title: problem.title,
                     subtitle: isCompleted
                         ? '${problem.topic} • ${problem.difficulty}'
                         : isReview
-                            ? 'Due for review'
-                            : '${problem.topic} • ${problem.difficulty}',
+                            ? 'Due for review • ${problem.topic}'
+                            : isWeakTopic
+                                ? 'Focus topic • ${problem.topic} • ${problem.difficulty}'
+                                : '${problem.topic} • ${problem.difficulty}',
                     icon: isCompleted
                         ? Icons.check_rounded
                         : isReview
                             ? Icons.replay_rounded
-                            : Icons.code_rounded,
+                            : isWeakTopic
+                                ? Icons.psychology_alt_rounded
+                                : Icons.code_rounded,
                     isCompleted: isCompleted,
-                    onTap: () => _openProblem(
-                      context,
-                      problem,
-                    ),
+                    onTap: () => _openProblem(context, problem),
                   ),
                 );
               },
             )
           else
             Text(
-              "No problems left to add to today's prep.",
+              "No tasks left to add to today's prep.",
               style: GoogleFonts.inter(
                 color: muted,
                 fontSize: 12,
@@ -1110,7 +1092,7 @@ class _DailyPrep extends StatelessWidget {
           if (interviewProblem != null) ...[
             const SizedBox(height: 10),
             _DailyPrepTask(
-              number: prepProblems.length + 1,
+              number: prepRecommendations.length + 1,
               type: 'INTERVIEW',
               title: 'Practice explaining',
               subtitle: state.hasCompletedInterview(interviewProblem.id)
@@ -1135,17 +1117,12 @@ class _DailyPrep extends StatelessWidget {
             width: double.infinity,
             height: 46,
             child: FilledButton(
-              onPressed: prepProblems.isNotEmpty
+              onPressed: prepRecommendations.isNotEmpty
                   ? () => _openProblem(
                         context,
-                        prepProblems.first,
+                        prepRecommendations.first.problem,
                       )
-                  : interviewProblem != null
-                      ? () => _openInterview(
-                            context,
-                            interviewProblem,
-                          )
-                      : null,
+                  : null,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
