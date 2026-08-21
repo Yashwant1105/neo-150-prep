@@ -398,6 +398,67 @@ class AppState {
     return result;
   }
 
+  Map<String, dynamic> buildAiCoachContext({
+    Map<String, dynamic>? interviewContext,
+  }) {
+    final completed = progress.values.where((p) => p.completed).length;
+    final total = problems.length;
+    final completionPercentage =
+        total == 0 ? 0 : ((completed / total) * 100).round();
+
+    final focusTopics = dailyFocusTopics.take(3).toList();
+
+    final weakest = weakTopics
+        .take(3)
+        .map((topic) => {
+              'topic': topic,
+              'completion_percentage':
+                  ((topicCompletionRates[topic] ?? 0) * 100).round(),
+            })
+        .toList();
+
+    final strongest = topicCompletionRates.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    final strongestTopics = strongest
+        .map((entry) => {
+              'topic': entry.key,
+              'completion_percentage': (entry.value * 100).round(),
+            })
+        .take(3)
+        .toList();
+
+    final context = <String, dynamic>{
+      'progress': {
+        'completed': completed,
+        'total': total,
+        'completion_percentage': completionPercentage,
+      },
+      'daily_prep': {
+        'daily_goal': dailyGoal,
+        'completed_today': todayCompleted,
+        'remaining_today': (dailyGoal - todayCompleted).clamp(0, dailyGoal),
+      },
+      'focus_areas': {
+        'topics': focusTopics,
+      },
+      'topic_performance': {
+        'weakest': weakest,
+        'strongest': strongestTopics,
+      },
+      'streak': {
+        'current': currentStreak,
+        'longest': longestStreak,
+      },
+    };
+
+    if (interviewContext != null && interviewContext.isNotEmpty) {
+      context['interview_context'] = interviewContext;
+    }
+
+    return context;
+  }
+
   AppState copyWith({
     Map<String, ProblemProgress>? progress,
     int? dailyGoal,

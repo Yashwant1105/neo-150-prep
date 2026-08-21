@@ -481,12 +481,16 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
     });
 
     try {
+      final state = ref.read(appControllerProvider).value;
+      final userContext = state?.buildAiCoachContext();
+
       final text = await AiCoachService().getHint(
         title: widget.problem.title,
         topic: widget.problem.topic,
         difficulty: widget.problem.difficulty,
         mode: mode,
         notes: notes.text.trim(),
+        userContext: userContext,
       );
 
       if (!mounted) {
