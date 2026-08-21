@@ -139,6 +139,7 @@ class _AchievementCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final unlocked = achievement.unlocked;
+    final resolvedIconPath = _achievementIcon(achievement.name);
 
     return Padding(
       padding: const EdgeInsets.only(
@@ -176,9 +177,7 @@ class _AchievementCard extends StatelessWidget {
                     ),
                   ),
                   child: SvgPicture.asset(
-                    _achievementIcon(
-                      achievement.name,
-                    ),
+                    resolvedIconPath,
                     width: 38,
                     height: 38,
                   ),
@@ -260,38 +259,35 @@ class _AchievementCard extends StatelessWidget {
   // ACHIEVEMENT SVG MAPPING
   // =========================================================================
 
-  String _achievementIcon(String name) {
-    switch (name.toLowerCase()) {
-      case 'first blood':
-        return 'assets/icons/achievements/first_blood.svg';
+  String _achievementIcon(String achievementName) {
+    const fallback = 'assets/icons/core/achievements.svg';
+    final normalized = achievementName
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
 
-      case 'getting started':
-        return 'assets/icons/achievements/getting_started.svg';
+    const mapped = {
+      'first_blood': 'assets/icons/achievements/first_blood.svg',
+      'getting_started': 'assets/icons/achievements/getting_started.svg',
+      'momentum': 'assets/icons/achievements/momentum.svg',
+      'brain_builder': 'assets/icons/achievements/brain_builder.svg',
+      'halfway_there': 'assets/icons/achievements/halfway_there.svg',
+      'century': 'assets/icons/achievements/century.svg',
+      'deep_grind': 'assets/icons/achievements/deep_grind.svg',
+      'tree_climber': 'assets/icons/achievements/tree_climber.svg',
+      'graph_explorer': 'assets/icons/achievements/graph_explorer.svg',
+      'dp_warrior': 'assets/icons/achievements/dp_warrior.svg',
+      'neetcode_master': 'assets/icons/achievements/neetcode_master.svg',
+      'streak_starter': 'assets/icons/achievements/streak_starter.svg',
+      'on_fire': 'assets/icons/achievements/on_fire.svg',
+      'daily_grinder': 'assets/icons/achievements/daily_grinder.svg',
+      'topic_master': 'assets/icons/achievements/topic_master.svg',
+      'productive_day': 'assets/icons/achievements/productive_day.svg',
+      'interview_ready': 'assets/icons/achievements/interview_ready.svg',
+    };
 
-      case 'momentum':
-        return 'assets/icons/achievements/momentum.svg';
-
-      case 'brain builder':
-        return 'assets/icons/achievements/brain_builder.svg';
-
-      case 'halfway there':
-        return 'assets/icons/achievements/halfway_there.svg';
-
-      case 'neetcode master':
-        return 'assets/icons/achievements/neetcode_master.svg';
-
-      case 'tree climber':
-        return 'assets/icons/achievements/tree_climber.svg';
-
-      case 'graph explorer':
-        return 'assets/icons/achievements/graph_explorer.svg';
-
-      case 'dp warrior':
-        return 'assets/icons/achievements/dp_warrior.svg';
-
-      default:
-        return 'assets/icons/core/achievements.svg';
-    }
+    return mapped[normalized] ?? fallback;
   }
 
   String _formatDate(DateTime date) {

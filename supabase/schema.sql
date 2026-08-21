@@ -79,14 +79,23 @@ create policy "user achievements own rows" on public.user_achievements for all u
 create policy "notification settings own rows" on public.notifications_settings for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 insert into public.achievements (id,name,description,icon) values
-('first-blood','First Blood','Complete your first problem.','⚔️'),
-('getting-started','Getting Started','Complete 10 problems.','🌱'),
-('momentum','Momentum','Complete 25 problems.','⚡'),
-('brain-builder','Brain Builder','Complete 50 problems.','🧠'),
-('halfway-there','Halfway There','Complete 75 problems.','🏁'),
-('century','Century','Complete 100 problems.','💯'),
-('deep-grind','Deep Grind','Complete 125 problems.','🔥'),
-('neetcode-master','NeetCode Master','Complete all 150 problems.','👑')
+('first-blood','First Blood','Complete your first problem.','first_blood'),
+('getting-started','Getting Started','Complete 10 problems.','getting_started'),
+('momentum','Momentum','Complete 25 problems.','momentum'),
+('brain-builder','Brain Builder','Complete 50 problems.','brain_builder'),
+('halfway-there','Halfway There','Complete 75 problems.','halfway_there'),
+('century','Century','Complete 100 problems.','century'),
+('deep-grind','Deep Grind','Complete 125 problems.','deep_grind'),
+('tree-climber','Tree Climber','Complete at least one Tree problem.','tree_climber'),
+('graph-explorer','Graph Explorer','Complete at least one Graph problem.','graph_explorer'),
+('dp-warrior','DP Warrior','Complete at least one Dynamic Programming problem.','dp_warrior'),
+('neetcode-master','NeetCode Master','Complete all 150 problems.','neetcode_master'),
+('streak-starter','Streak Starter','Reach a 3-day streak.','streak'),
+('on-fire','On Fire','Reach a 7-day streak.','fire'),
+('daily-grinder','Daily Grinder','Complete the user daily goal on 7 separate days.','daily_grinder'),
+('topic-master','Topic Master','Complete 100% of any topic.','topic_master'),
+('productive-day','Productive Day','Complete 5 problems in one day.','productive_day'),
+('interview-ready','Interview Ready','Complete 5 interview sessions.','interview_ready')
 on conflict (id) do nothing;
 
 -- Seed the 150 problems from assets/data/neetcode150.json.

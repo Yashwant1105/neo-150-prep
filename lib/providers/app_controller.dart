@@ -825,11 +825,42 @@ class AppController extends AsyncNotifier<AppState> {
           .toList();
 
       final completedCount = completedProblems.length;
+      final streakDays = current.currentStreak;
+      final topicTotals = <String, int>{};
+      final topicCompleted = <String, int>{};
+      final dayCounts = <String, int>{};
+
+      for (final problem in current.problems) {
+        topicTotals[problem.topic] = (topicTotals[problem.topic] ?? 0) + 1;
+
+        if (progress[problem.id]?.completed == true) {
+          topicCompleted[problem.topic] =
+              (topicCompleted[problem.topic] ?? 0) + 1;
+        }
+      }
+
+      for (final problem in current.problems) {
+        final completedAt = progress[problem.id]?.completedAt;
+        if (progress[problem.id]?.completed != true || completedAt == null) {
+          continue;
+        }
+
+        final dayKey =
+            '${completedAt.year}-${completedAt.month}-${completedAt.day}';
+        dayCounts[dayKey] = (dayCounts[dayKey] ?? 0) + 1;
+      }
+
+      final completedInterviewSessions =
+          await _remote.fetchCompletedInterviewSessionCount(userId);
+      final daysMeetingDailyGoal =
+          dayCounts.values.where((count) => count >= current.dailyGoal).length;
 
       debugPrint(
         'Achievement check: '
         '$completedCount completed, '
-        '${current.achievements.length} definitions loaded.',
+        '${current.achievements.length} definitions loaded, '
+        '$completedInterviewSessions interview sessions, '
+        '$daysMeetingDailyGoal daily-goal days.',
       );
 
       final newlyUnlocked = <Achievement>[];
@@ -839,11 +870,9 @@ class AppController extends AsyncNotifier<AppState> {
           continue;
         }
 
-        final name = achievement.name.trim().toLowerCase();
-
         bool shouldUnlock = false;
 
-        switch (name) {
+        switch (achievement.name.trim().toLowerCase()) {
           case 'first blood':
             shouldUnlock = completedCount >= 1;
             break;
@@ -864,33 +893,72 @@ class AppController extends AsyncNotifier<AppState> {
             shouldUnlock = completedCount >= 75;
             break;
 
-          case 'neetcode master':
-            shouldUnlock = completedCount >= 150;
+          case 'century':
+            shouldUnlock = completedCount >= 100;
+            break;
+
+          case 'deep grind':
+            shouldUnlock = completedCount >= 125;
             break;
 
           case 'tree climber':
-            shouldUnlock = completedProblems.any(
-              (p) => p.topic.toLowerCase().contains('tree'),
+            shouldUnlock = topicTotals.entries.any(
+              (entry) =>
+                  entry.key.toLowerCase().contains('tree') &&
+                  (topicCompleted[entry.key] ?? 0) == entry.value,
             );
             break;
 
           case 'graph explorer':
-            shouldUnlock = completedProblems.any(
-              (p) => p.topic.toLowerCase().contains('graph'),
+            shouldUnlock = topicTotals.entries.any(
+              (entry) =>
+                  entry.key.toLowerCase().contains('graph') &&
+                  (topicCompleted[entry.key] ?? 0) == entry.value,
             );
             break;
 
           case 'dp warrior':
-            shouldUnlock = completedProblems.any(
-              (p) =>
-                  p.topic.toLowerCase().contains('dynamic') ||
-                  p.topic.toLowerCase().contains('dp'),
+            shouldUnlock = topicTotals.entries.any(
+              (entry) =>
+                  (entry.key.toLowerCase().contains('dynamic') ||
+                      entry.key.toLowerCase().contains('dp')) &&
+                  (topicCompleted[entry.key] ?? 0) == entry.value,
             );
+            break;
+
+          case 'neetcode master':
+            shouldUnlock = completedCount >= 150;
+            break;
+
+          case 'streak starter':
+            shouldUnlock = streakDays >= 3;
+            break;
+
+          case 'on fire':
+            shouldUnlock = streakDays >= 7;
+            break;
+
+          case 'daily grinder':
+            shouldUnlock = daysMeetingDailyGoal >= 7;
+            break;
+
+          case 'topic master':
+            shouldUnlock = topicTotals.entries.any(
+              (entry) => (topicCompleted[entry.key] ?? 0) == entry.value,
+            );
+            break;
+
+          case 'productive day':
+            shouldUnlock = dayCounts.values.any((count) => count >= 5);
+            break;
+
+          case 'interview ready':
+            shouldUnlock = completedInterviewSessions >= 5;
             break;
         }
 
         debugPrint(
-          'Achievement "${achievement.name}": $shouldUnlock',
+          'Achievement "${achievement.name}" (${achievement.id}): $shouldUnlock',
         );
 
         if (shouldUnlock) {

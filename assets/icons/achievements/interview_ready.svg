@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+<title>Interview Ready</title>
+<polygon points="12,1.8 21,7 21,17 12,22.2 3,17 3,7" fill="#0B0F0D" stroke="#B7FF4A" stroke-width="1.2"/>
+<polygon points="12,4 18.7,7.9 18.7,16.1 12,20 5.3,16.1 5.3,7.9" fill="none" stroke="#93A39A" stroke-width="0.8"/>
+<rect x="9.2" y="5.2" width="5.6" height="10" rx="2.8" stroke="#F4F7F3" stroke-width="1.4"/>
+<path d="M6.8 11.2v.7a5.2 5.2 0 0 0 10.4 0v-.7M12 17.1v2.2M9.2 19.3h5.6" stroke="#F4F7F3" stroke-width="1.4" stroke-linecap="round"/>
+<path d="M12 5.2v5.2" stroke="#B7FF4A" stroke-width="2" stroke-linecap="round"/>
+</svg>

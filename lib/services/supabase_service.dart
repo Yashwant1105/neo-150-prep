@@ -159,7 +159,7 @@ class SupabaseService {
           score,
           session_completed,
           created_at,
-          problems!inner(title,topic,difficulty,order,slug)
+          problems!inner(title,topic,difficulty,order_index,slug)
           ''',
         )
         .eq('user_id', userId)
@@ -180,6 +180,21 @@ class SupabaseService {
         .eq('session_completed', true);
 
     return rows.map<String>((row) => row['problem_id'] as String).toSet();
+  }
+
+  /// Counts the number of completed interview sessions for this user.
+  /// A completed session is represented by the Q2 row in the existing
+  /// `user_interview_attempts` table (`session_completed = true`).
+  Future<int> fetchCompletedInterviewSessionCount(
+    String userId,
+  ) async {
+    final rows = await client
+        .from('user_interview_attempts')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('session_completed', true);
+
+    return rows.length;
   }
 
   /// Checks whether the supplied problem has already had a completed
@@ -295,7 +310,7 @@ class SupabaseService {
           description,
           icon
           ''',
-    ).order('created_at');
+    );
 
     final unlocked = await client.from('user_achievements').select(
       '''
