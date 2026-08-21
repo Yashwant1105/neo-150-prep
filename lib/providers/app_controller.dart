@@ -39,6 +39,8 @@ class AppState {
   final List<Achievement> achievements;
   final List<String> dailyPrepProblemIds;
   final String? dailyPrepDate;
+  final List<String> dailyFocusTopics;
+  final String? dailyFocusDate;
 
   const AppState({
     required this.problems,
@@ -49,6 +51,8 @@ class AppState {
     this.achievements = const <Achievement>[],
     this.dailyPrepProblemIds = const <String>[],
     this.dailyPrepDate,
+    this.dailyFocusTopics = const <String>[],
+    this.dailyFocusDate,
   });
 
   int get completed => progress.values.where((p) => p.completed).length;
@@ -151,6 +155,75 @@ class AppState {
             !r!.reviewDueAt!.isAfter(DateTime.now());
       }).toList();
 
+  /// Completion rate for every topic.
+  ///
+  /// A lower rate means the topic has received less practice and is therefore
+  /// a stronger candidate for focused practice.
+  Map<String, double> get topicCompletionRates {
+    final totals = <String, int>{};
+    final completed = <String, int>{};
+
+    for (final problem in problems) {
+      totals[problem.topic] = (totals[problem.topic] ?? 0) + 1;
+
+      if (progress[problem.id]?.completed == true) {
+        completed[problem.topic] = (completed[problem.topic] ?? 0) + 1;
+      }
+    }
+
+    return {
+      for (final topic in totals.keys)
+        topic: (completed[topic] ?? 0) / totals[topic]!,
+    };
+  }
+
+  /// Topics ordered from weakest completion rate to strongest.
+  ///
+  /// Completion percentage is the primary signal. Remaining problem count and
+  /// the stable problem order are used as deterministic tie-breakers.
+  List<String> get weakTopics {
+    final rates = topicCompletionRates;
+    final topicTotals = <String, int>{};
+
+    for (final problem in problems) {
+      topicTotals[problem.topic] = (topicTotals[problem.topic] ?? 0) + 1;
+    }
+
+    final topics = rates.keys.toList()
+      ..sort((a, b) {
+        final rateCompare = rates[a]!.compareTo(rates[b]!);
+        if (rateCompare != 0) return rateCompare;
+
+        final remainingA =
+            topicTotals[a]! - (rates[a]! * topicTotals[a]!).round();
+        final remainingB =
+            topicTotals[b]! - (rates[b]! * topicTotals[b]!).round();
+
+        final remainingCompare = remainingB.compareTo(remainingA);
+        if (remainingCompare != 0) return remainingCompare;
+
+        final orderA = problems.where((p) => p.topic == a).fold<int>(1 << 30,
+            (minOrder, problem) {
+          return problem.order < minOrder ? problem.order : minOrder;
+        });
+        final orderB = problems.where((p) => p.topic == b).fold<int>(1 << 30,
+            (minOrder, problem) {
+          return problem.order < minOrder ? problem.order : minOrder;
+        });
+
+        return orderA.compareTo(orderB);
+      });
+
+    return topics;
+  }
+
+  /// The user's fixed daily focus snapshot for this day.
+  ///
+  /// Percentages remain live because they are derived from the current progress
+  /// map for each selected topic; the selection itself is only recalculated when
+  /// a new day begins.
+  List<String> get focusTopics => dailyFocusTopics;
+
   Problem? get nextProblem {
     final incomplete =
         problems.where((p) => !(progress[p.id]?.completed ?? false)).toList();
@@ -205,10 +278,16 @@ class AppState {
       final due = progress?.reviewDueAt;
       final isDue = due != null && !due.isAfter(DateTime.now());
 
+      final type = isDue
+          ? DailyPrepType.review
+          : focusTopics.contains(problem.topic)
+              ? DailyPrepType.weakTopic
+              : DailyPrepType.solve;
+
       recommendations.add(
         DailyPrepRecommendation(
           problem: problem,
-          type: isDue ? DailyPrepType.review : DailyPrepType.solve,
+          type: type,
         ),
       );
     }
@@ -246,14 +325,34 @@ class AppState {
         return compare != 0 ? compare : a.order.compareTo(b.order);
       });
 
-    for (final problem in reviews) {add(problem);}
+    for (final problem in reviews) {
+      add(problem);
+    }
+
+    final topicRates = topicCompletionRates;
+    final weakTopicSet = focusTopics.toSet();
 
     final newProblems = problems
         .where((problem) => !(progress[problem.id]?.completed ?? false))
         .toList()
-      ..sort((a, b) => a.order.compareTo(b.order));
+      ..sort((a, b) {
+        final aIsFocus = weakTopicSet.contains(a.topic);
+        final bIsFocus = weakTopicSet.contains(b.topic);
 
-    for (final problem in newProblems) {add(problem);}
+        if (aIsFocus != bIsFocus) {
+          return aIsFocus ? -1 : 1;
+        }
+
+        final aRate = topicRates[a.topic] ?? 1.0;
+        final bRate = topicRates[b.topic] ?? 1.0;
+        final rateCompare = aRate.compareTo(bRate);
+
+        return rateCompare != 0 ? rateCompare : a.order.compareTo(b.order);
+      });
+
+    for (final problem in newProblems) {
+      add(problem);
+    }
 
     final topicTotals = <String, int>{};
     final topicCompleted = <String, int>{};
@@ -285,12 +384,16 @@ class AppState {
       return compare != 0 ? compare : a.order.compareTo(b.order);
     });
 
-    for (final problem in weakCandidates) {add(problem);}
+    for (final problem in weakCandidates) {
+      add(problem);
+    }
 
     // Safe fallback if the user has completed almost everything.
     final remaining = problems.toList()
       ..sort((a, b) => a.order.compareTo(b.order));
-    for (final problem in remaining) add(problem);
+    for (final problem in remaining) {
+      add(problem);
+    }
 
     return result;
   }
@@ -303,6 +406,8 @@ class AppState {
     List<Achievement>? achievements,
     List<String>? dailyPrepProblemIds,
     String? dailyPrepDate,
+    List<String>? dailyFocusTopics,
+    String? dailyFocusDate,
   }) {
     return AppState(
       problems: problems,
@@ -314,6 +419,8 @@ class AppState {
       achievements: achievements ?? this.achievements,
       dailyPrepProblemIds: dailyPrepProblemIds ?? this.dailyPrepProblemIds,
       dailyPrepDate: dailyPrepDate ?? this.dailyPrepDate,
+      dailyFocusTopics: dailyFocusTopics ?? this.dailyFocusTopics,
+      dailyFocusDate: dailyFocusDate ?? this.dailyFocusDate,
     );
   }
 
@@ -328,6 +435,21 @@ class AppController extends AsyncNotifier<AppState> {
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   bool _flushInProgress = false;
+
+  List<String> _computeDailyFocusTopics(
+    List<Problem> problems,
+    Map<String, ProblemProgress> progress,
+  ) {
+    final state = AppState(
+      problems: problems,
+      progress: progress,
+    );
+
+    return state.weakTopics
+        .where((topic) => state.topicCompletionRates[topic]! < 1.0)
+        .take(3)
+        .toList();
+  }
 
   @override
   Future<AppState> build() async {
@@ -349,6 +471,10 @@ class AppController extends AsyncNotifier<AppState> {
     var achievements = <Achievement>[];
 
     var dailyGoal = prefs['dailyGoal'] ?? 2;
+    var dailyFocusDate = prefs['dailyFocusDate']?.toString();
+    var dailyFocusTopics = prefs['dailyFocusTopics'] is List
+        ? (prefs['dailyFocusTopics'] as List).map((e) => e.toString()).toList()
+        : <String>[];
 
     if (userId != null) {
       try {
@@ -442,6 +568,25 @@ class AppController extends AsyncNotifier<AppState> {
             dailyGoal,
           );
         }
+
+        final cloudDailyFocus = await _remote.fetchDailyFocus(userId);
+        if (cloudDailyFocus != null) {
+          dailyFocusDate = cloudDailyFocus['date']?.toString();
+          final cloudTopics = cloudDailyFocus['topics'] is List
+              ? (cloudDailyFocus['topics'] as List)
+                  .map((e) => e.toString())
+                  .toList()
+              : <String>[];
+
+          if (cloudTopics.isNotEmpty) {
+            dailyFocusTopics = cloudTopics;
+          }
+
+          final updatedPrefs = await _local.loadPrefs(userId);
+          updatedPrefs['dailyFocusDate'] = dailyFocusDate;
+          updatedPrefs['dailyFocusTopics'] = dailyFocusTopics;
+          await _local.savePrefs(userId, updatedPrefs);
+        }
       } catch (e, stack) {
         debugPrint(
           'Initial cloud sync failed: $e',
@@ -451,6 +596,28 @@ class AppController extends AsyncNotifier<AppState> {
     }
 
     final todayKey = AppState._dayKey(DateTime.now());
+    if (dailyFocusDate != todayKey || dailyFocusTopics.isEmpty) {
+      dailyFocusTopics = _computeDailyFocusTopics(problems, progress);
+      dailyFocusDate = todayKey;
+
+      final existingPrefs = Map<String, dynamic>.from(prefs);
+      existingPrefs['dailyFocusDate'] = dailyFocusDate;
+      existingPrefs['dailyFocusTopics'] = dailyFocusTopics;
+      await _local.savePrefs(userId, existingPrefs);
+
+      if (userId != null) {
+        try {
+          await _remote.saveDailyFocus(
+            userId,
+            todayKey,
+            dailyFocusTopics,
+          );
+        } catch (e, stack) {
+          debugPrint('Daily focus cloud sync failed: $e');
+          debugPrintStack(stackTrace: stack);
+        }
+      }
+    }
     final savedPlanDate = prefs['dailyPrepDate']?.toString();
     final savedPlanRaw = prefs['dailyPrepProblemIds'];
     var dailyPrepProblemIds = savedPlanRaw is List
@@ -487,6 +654,8 @@ class AppController extends AsyncNotifier<AppState> {
       achievements: achievements,
       dailyPrepProblemIds: dailyPrepProblemIds,
       dailyPrepDate: todayKey,
+      dailyFocusTopics: dailyFocusTopics,
+      dailyFocusDate: dailyFocusDate,
     );
   }
 

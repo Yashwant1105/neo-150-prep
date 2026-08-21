@@ -206,6 +206,50 @@ class ProgressScreen extends ConsumerWidget {
               );
             }),
 
+            const SizedBox(height: 24),
+
+            // ===============================================================
+            // FOCUS AREAS
+            // ===============================================================
+
+            const SectionTitle(
+              title: 'Focus areas',
+            ),
+
+            const SizedBox(height: 10),
+
+            if (s.focusTopics.isEmpty)
+              GlowCard(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    SvgPicture.asset(
+                      'assets/icons/core/check.svg',
+                      width: 22,
+                      height: 22,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'All topics are cleared. Keep reviewing to stay sharp.',
+                        style: humanTextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: muted,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              ...s.focusTopics.map(
+                (topic) => _focusTopicRow(
+                  state: s,
+                  topic: topic,
+                ),
+              ),
+
             const SizedBox(height: 18),
 
             // ===============================================================
@@ -282,6 +326,83 @@ class ProgressScreen extends ConsumerWidget {
                 color: muted,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _focusTopicRow({
+    required AppState state,
+    required String topic,
+  }) {
+    final all = state.problems.where((p) => p.topic == topic).toList();
+    final done =
+        all.where((p) => state.progress[p.id]?.completed ?? false).length;
+    final remaining = all.length - done;
+    final value = all.isEmpty ? 0.0 : done / all.length;
+    final icon = _topicIcon(topic);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: GlowCard(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            if (icon != null)
+              SvgPicture.asset(
+                icon,
+                width: 24,
+                height: 24,
+              ),
+            if (icon != null) const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          topic,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '${(value * 100).round()}%',
+                        style: technicalTextStyle(
+                          color: acid,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(99),
+                    child: LinearProgressIndicator(
+                      value: value,
+                      minHeight: 6,
+                      backgroundColor: line,
+                      color: acid,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    '$remaining remaining',
+                    style: humanTextStyle(
+                      color: muted,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

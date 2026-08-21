@@ -138,16 +138,18 @@ class SupabaseService {
     });
   }
 
+  /// Fetches the raw interview-attempt rows for the current user.
+  ///
+  /// The existing `user_interview_attempts` table is the canonical source for
+  /// Interview History, so history does not introduce a second persistence
+  /// path or table. Rows are returned newest-first.
   Future<List<Map<String, dynamic>>> fetchInterviewHistory(
     String userId,
   ) async {
-    debugPrint('INTERVIEW HISTORY: fetching for user $userId');
-
-    try {
-      final result = await client
-          .from('user_interview_attempts')
-          .select(
-            '''
+    final result = await client
+        .from('user_interview_attempts')
+        .select(
+          '''
           id,
           problem_id,
           question_number,
@@ -157,24 +159,13 @@ class SupabaseService {
           score,
           session_completed,
           created_at,
-          problems!inner(title,topic,difficulty,order_index,slug)
+          problems!inner(title,topic,difficulty,order,slug)
           ''',
-          )
-          .eq('user_id', userId)
-          .order('created_at', ascending: false);
+        )
+        .eq('user_id', userId)
+        .order('created_at', ascending: false);
 
-      final rows = List<Map<String, dynamic>>.from(result);
-
-      debugPrint(
-        'INTERVIEW HISTORY: fetched ${rows.length} rows',
-      );
-
-      return rows;
-    } catch (e, stackTrace) {
-      debugPrint('INTERVIEW HISTORY ERROR: $e');
-      debugPrint('INTERVIEW HISTORY STACK TRACE: $stackTrace');
-      rethrow;
-    }
+    return List<Map<String, dynamic>>.from(result);
   }
 
   /// Returns problem UUIDs for which this user has completed at least one
@@ -236,6 +227,52 @@ class SupabaseService {
       {
         'user_id': userId,
         'daily_goal': dailyGoal,
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      onConflict: 'user_id',
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // DAILY FOCUS AREAS
+  // ---------------------------------------------------------------------------
+
+  /// Loads the fixed focus topics selected for the current day for this user.
+  /// The topics are stored separately from problem progress; their percentages
+  /// are always derived from the user's account-specific progress.
+  Future<Map<String, dynamic>?> fetchDailyFocus(String userId) async {
+    final result = await client
+        .from('user_preferences')
+        .select('daily_focus_date,daily_focus_topics')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    if (result == null) {
+      return null;
+    }
+
+    final rawTopics = result['daily_focus_topics'];
+    final topics = rawTopics is List
+        ? rawTopics.map((topic) => topic.toString()).toList()
+        : <String>[];
+
+    return {
+      'date': result['daily_focus_date']?.toString(),
+      'topics': topics,
+    };
+  }
+
+  /// Persists the fixed focus topics for a specific user/day.
+  Future<void> saveDailyFocus(
+    String userId,
+    String date,
+    List<String> topics,
+  ) async {
+    await client.from('user_preferences').upsert(
+      {
+        'user_id': userId,
+        'daily_focus_date': date,
+        'daily_focus_topics': topics,
         'updated_at': DateTime.now().toIso8601String(),
       },
       onConflict: 'user_id',
