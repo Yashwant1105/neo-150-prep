@@ -337,6 +337,57 @@ class SupabaseService {
     );
   }
 
+  Future<Map<String, dynamic>?> fetchRecentInterviewStats(
+    String userId, {
+    int limit = 10,
+  }) async {
+    final rows = await client
+        .from('user_interview_attempts')
+        .select('score,created_at')
+        .eq('user_id', userId)
+        .not('score', 'is', null)
+        .order('created_at', ascending: false)
+        .limit(limit);
+
+    if (rows.isEmpty) {
+      return null;
+    }
+
+    final scores = rows
+        .map((row) => (row['score'] as num?)?.toDouble())
+        .whereType<double>()
+        .toList();
+
+    if (scores.isEmpty) {
+      return null;
+    }
+
+    final recentScores = scores.take(3).toList();
+    final olderScores = scores.skip(3).take(3).toList();
+    final average = scores.reduce((a, b) => a + b) / scores.length;
+    final recentAverage =
+        recentScores.reduce((a, b) => a + b) / recentScores.length;
+    final olderAverage = olderScores.isEmpty
+        ? recentAverage
+        : olderScores.reduce((a, b) => a + b) / olderScores.length;
+
+    String trend;
+    if (recentAverage > olderAverage + 0.5) {
+      trend = 'improving';
+    } else if (recentAverage < olderAverage - 0.5) {
+      trend = 'declining';
+    } else {
+      trend = 'stable';
+    }
+
+    return {
+      'session_count': rows.length,
+      'average_score': double.parse((average).toStringAsFixed(1)),
+      'recent_score': double.parse((recentScores.first).toStringAsFixed(1)),
+      'trend': trend,
+    };
+  }
+
   Future<void> unlockAchievement(
     String userId,
     String achievementId,

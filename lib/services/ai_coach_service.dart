@@ -13,6 +13,7 @@ class AiCoachService {
     required String difficulty,
     required String mode,
     String notes = '',
+    Map<String, dynamic>? userContext,
   }) async {
     return _invoke(
       title: title,
@@ -20,6 +21,7 @@ class AiCoachService {
       difficulty: difficulty,
       mode: mode,
       notes: notes,
+      userContext: userContext,
     );
   }
 
@@ -29,6 +31,7 @@ class AiCoachService {
     required String difficulty,
     required int questionNumber,
     String notes = '',
+    Map<String, dynamic>? userContext,
   }) async {
     return _invoke(
       title: title,
@@ -36,6 +39,7 @@ class AiCoachService {
       difficulty: difficulty,
       mode: 'interview_question',
       notes: notes,
+      userContext: userContext,
       questionNumber: questionNumber,
     );
   }
@@ -48,6 +52,7 @@ class AiCoachService {
     required String answer,
     required int questionNumber,
     String notes = '',
+    Map<String, dynamic>? userContext,
   }) async {
     return _invoke(
       title: title,
@@ -55,6 +60,7 @@ class AiCoachService {
       difficulty: difficulty,
       mode: 'interview_feedback',
       notes: notes,
+      userContext: userContext,
       question: question,
       answer: answer,
       questionNumber: questionNumber,
@@ -67,6 +73,7 @@ class AiCoachService {
     required String difficulty,
     required String mode,
     String notes = '',
+    Map<String, dynamic>? userContext,
     String? question,
     String? answer,
     int? questionNumber,
@@ -79,6 +86,7 @@ class AiCoachService {
         'difficulty': difficulty,
         'mode': mode,
         'notes': notes,
+        if (userContext != null) 'user_context': userContext,
         if (question != null) 'question': question,
         if (answer != null) 'answer': answer,
         if (questionNumber != null) 'question_number': questionNumber,

@@ -28,6 +28,9 @@ export default {
           difficulty,
           mode,
           notes = "",
+          question,
+          answer,
+          user_context,
         } = body;
 
         if (
@@ -45,11 +48,12 @@ export default {
           );
         }
 
-        // Exactly two hint levels. There is intentionally no hint3.
         const allowedModes = [
           "hint1",
           "hint2",
           "approach",
+          "interview_question",
+          "interview_feedback",
         ];
 
         if (!allowedModes.includes(mode)) {
@@ -84,6 +88,9 @@ export default {
           difficulty,
           mode,
           notes,
+          question: typeof question === "string" ? question : undefined,
+          answer: typeof answer === "string" ? answer : undefined,
+          userContext: isPlainObject(user_context) ? user_context : null,
         });
 
         const geminiResponse = await fetch(
@@ -181,13 +188,21 @@ function buildPrompt({
   difficulty,
   mode,
   notes,
+  question,
+  answer,
+  userContext,
 }: {
   title: string;
   topic: string;
   difficulty: string;
   mode: string;
   notes: string;
+  question?: string;
+  answer?: string;
+  userContext: Record<string, unknown> | null;
 }) {
+  const userContextText = formatUserContext(userContext);
+
   const base = `
 You are the AI Coach inside Min's Prep, a coding interview preparation app.
 
@@ -198,6 +213,8 @@ Difficulty: ${difficulty}
 
 Student notes:
 ${notes || "(No notes yet)"}
+
+${userContextText}
 
 STRICT RULES:
 - Teach the student instead of immediately solving the problem.
@@ -210,6 +227,9 @@ STRICT RULES:
 - Do not ask follow-up questions.
 - Do not end with a question.
 - Do not add motivational filler.
+- Use the USER CONTEXT only when relevant to the current problem or coaching advice.
+- Do not invent user statistics or data that are not in the USER CONTEXT.
+- If a context value is missing, ignore it.
 - Return only the requested content.
 `;
 
@@ -274,9 +294,60 @@ Formatting rules:
 - Do not ask a question.
 `;
 
+    case "interview_question":
+      return `${base}
+
+MODE: INTERVIEW QUESTION
+
+Generate exactly one interview-style question for this problem.
+Keep it focused on the problem's core thinking and communication.
+Do not provide the answer.
+Do not ask follow-up questions.
+Return only the question text.
+`;
+
+    case "interview_feedback":
+      return `${base}
+
+MODE: INTERVIEW FEEDBACK
+
+The student answered the question below.
+Question: ${question ?? title}
+
+Student answer:
+${answer ?? "(No answer provided)"}
+
+Give concise interview feedback in a realistic, coaching tone.
+Focus on clarity, structure, correctness, and how to improve.
+Use a score in the format: Score: X/10.
+Do not provide code.
+Do not give the complete solution.
+Do not add a greeting or a conclusion.
+Return only the feedback.
+`;
+
     default:
       return base;
   }
+}
+
+function formatUserContext(userContext: Record<string, unknown> | null): string {
+  if (!userContext || Object.keys(userContext).length === 0) {
+    return "USER CONTEXT:\nNone provided.";
+  }
+
+  const sections: string[] = ["USER CONTEXT:"];
+
+  for (const [key, value] of Object.entries(userContext)) {
+    if (value === null || value === undefined) continue;
+    sections.push(`${key}: ${JSON.stringify(value, null, 2)}`);
+  }
+
+  return sections.join("\n");
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 function cleanAiResponse(text: string): string {

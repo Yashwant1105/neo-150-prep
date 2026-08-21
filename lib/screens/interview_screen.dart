@@ -7,6 +7,7 @@ import 'interview_history_screen.dart';
 import '../models/problem.dart';
 import '../providers/app_controller.dart';
 import '../services/ai_coach_service.dart';
+import '../services/supabase_service.dart';
 import '../widgets/app_theme.dart';
 import '../widgets/ui.dart';
 import '../widgets/mp_icon.dart';
@@ -60,6 +61,25 @@ class _InterviewScreenState extends ConsumerState<InterviewScreen> {
     super.dispose();
   }
 
+  Future<Map<String, dynamic>?> _buildUserContext(Problem problem) async {
+    final state = ref.read(appControllerProvider).value;
+    if (state == null) return null;
+
+    Map<String, dynamic>? interviewContext;
+    final userId = SupabaseService.currentSession?.user.id;
+
+    if (userId != null) {
+      try {
+        interviewContext =
+            await SupabaseService().fetchRecentInterviewStats(userId);
+      } catch (_) {
+        interviewContext = null;
+      }
+    }
+
+    return state.buildAiCoachContext(interviewContext: interviewContext);
+  }
+
   Future<void> _start(Problem problem) async {
     setState(() {
       _problem = problem;
@@ -75,6 +95,7 @@ class _InterviewScreenState extends ConsumerState<InterviewScreen> {
     try {
       final state = ref.read(appControllerProvider).value;
       final notes = state?.progress[problem.id]?.notes ?? '';
+      final userContext = await _buildUserContext(problem);
 
       final question = await _ai.getInterviewQuestion(
         title: problem.title,
@@ -82,6 +103,7 @@ class _InterviewScreenState extends ConsumerState<InterviewScreen> {
         difficulty: problem.difficulty,
         questionNumber: 1,
         notes: notes,
+        userContext: userContext,
       );
 
       if (!mounted) return;
@@ -117,6 +139,7 @@ class _InterviewScreenState extends ConsumerState<InterviewScreen> {
     try {
       final state = ref.read(appControllerProvider).value;
       final notes = state?.progress[problem.id]?.notes ?? '';
+      final userContext = await _buildUserContext(problem);
 
       final rawFeedback = await _ai.getInterviewFeedback(
         title: problem.title,
@@ -126,6 +149,7 @@ class _InterviewScreenState extends ConsumerState<InterviewScreen> {
         answer: answer,
         questionNumber: _questionNumber,
         notes: notes,
+        userContext: userContext,
       );
 
       final cleanedFeedback = _cleanText(rawFeedback);
@@ -196,6 +220,7 @@ class _InterviewScreenState extends ConsumerState<InterviewScreen> {
     try {
       final state = ref.read(appControllerProvider).value;
       final notes = state?.progress[problem.id]?.notes ?? '';
+      final userContext = await _buildUserContext(problem);
 
       final question = await _ai.getInterviewQuestion(
         title: problem.title,
@@ -203,6 +228,7 @@ class _InterviewScreenState extends ConsumerState<InterviewScreen> {
         difficulty: problem.difficulty,
         questionNumber: 2,
         notes: notes,
+        userContext: userContext,
       );
 
       if (!mounted) return;
