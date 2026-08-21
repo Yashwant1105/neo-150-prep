@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'interview_history_screen.dart';
+
 import '../models/problem.dart';
 import '../providers/app_controller.dart';
 import '../services/ai_coach_service.dart';
 import '../widgets/app_theme.dart';
 import '../widgets/ui.dart';
+import '../widgets/mp_icon.dart';
 
 class InterviewScreen extends ConsumerStatefulWidget {
   final Problem? initialProblem;
@@ -289,6 +292,21 @@ class _InterviewScreenState extends ConsumerState<InterviewScreen> {
           ),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Interview History',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const InterviewHistoryScreen(),
+                ),
+              );
+            },
+            icon: MpIcon(
+              'core/interview_history',
+              size: 23,
+            ),
+          ),
           if (_problem != null)
             IconButton(
               tooltip: 'Choose another problem',

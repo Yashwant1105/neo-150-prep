@@ -377,7 +377,7 @@ class ProgressScreen extends ConsumerWidget {
         return 'assets/icons/topics/tree.svg';
 
       case 'Heap / Priority Queue':
-        return 'assets/icons/topics/queue.svg';
+        return 'assets/icons/topics/heap.svg';
 
       case 'Backtracking':
         return 'assets/icons/topics/backtracking.svg';
@@ -386,24 +386,32 @@ class ProgressScreen extends ConsumerWidget {
         return 'assets/icons/topics/graph.svg';
 
       case 'Advanced Graphs':
-        return 'assets/icons/topics/graph.svg';
+        return 'assets/icons/topics/advanced_graph.svg';
 
       case '1-D Dynamic Programming':
-        return 'assets/icons/topics/dp.svg';
+        return 'assets/icons/topics/dp_1d.svg';
 
       case '2-D Dynamic Programming':
-        return 'assets/icons/topics/dp.svg';
+        return 'assets/icons/topics/dp_2d.svg';
 
       case 'Greedy':
         return 'assets/icons/topics/greedy.svg';
 
-      // No dedicated SVG currently exists for these.
+      // Dedicated topic SVGs.
       case 'Linked List':
+        return 'assets/icons/topics/linked_list.svg';
+
       case 'Tries':
+        return 'assets/icons/topics/tries.svg';
+
       case 'Intervals':
+        return 'assets/icons/topics/intervals.svg';
+
       case 'Math & Geometry':
+        return 'assets/icons/topics/math_geometry.svg';
+
       case 'Bit Manipulation':
-        return null;
+        return 'assets/icons/topics/bit_manipulation.svg';
 
       default:
         return null;

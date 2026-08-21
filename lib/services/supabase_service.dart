@@ -138,6 +138,45 @@ class SupabaseService {
     });
   }
 
+  Future<List<Map<String, dynamic>>> fetchInterviewHistory(
+    String userId,
+  ) async {
+    debugPrint('INTERVIEW HISTORY: fetching for user $userId');
+
+    try {
+      final result = await client
+          .from('user_interview_attempts')
+          .select(
+            '''
+          id,
+          problem_id,
+          question_number,
+          question,
+          answer,
+          feedback,
+          score,
+          session_completed,
+          created_at,
+          problems!inner(title,topic,difficulty,order_index,slug)
+          ''',
+          )
+          .eq('user_id', userId)
+          .order('created_at', ascending: false);
+
+      final rows = List<Map<String, dynamic>>.from(result);
+
+      debugPrint(
+        'INTERVIEW HISTORY: fetched ${rows.length} rows',
+      );
+
+      return rows;
+    } catch (e, stackTrace) {
+      debugPrint('INTERVIEW HISTORY ERROR: $e');
+      debugPrint('INTERVIEW HISTORY STACK TRACE: $stackTrace');
+      rethrow;
+    }
+  }
+
   /// Returns problem UUIDs for which this user has completed at least one
   /// two-question interview session.
   Future<Set<String>> fetchCompletedInterviewProblemIds(
