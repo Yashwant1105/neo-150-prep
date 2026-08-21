@@ -83,6 +83,15 @@ class ProgressScreen extends ConsumerWidget {
                             fontWeight: FontWeight.w700,
                           ),
                         ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '${(s.completionRate * 100).round()}% complete',
+                          style: technicalTextStyle(
+                            color: acid,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -262,6 +271,24 @@ class ProgressScreen extends ConsumerWidget {
 
             const SizedBox(height: 10),
 
+            _WeeklyActivity(
+              state: s,
+            ),
+
+            const SizedBox(height: 14),
+
+            const Text(
+              '70-DAY ACTIVITY',
+              style: TextStyle(
+                color: muted,
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.1,
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
             _Heatmap(
               state: s,
             ),
@@ -320,6 +347,15 @@ class ProgressScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: 12),
+            Text(
+              '${(value * 100).round()}%',
+              style: technicalTextStyle(
+                color: acid,
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(width: 8),
             Text(
               '$done/$all',
               style: technicalTextStyle(
@@ -777,6 +813,140 @@ class _StreakCard extends StatelessWidget {
     );
   }
 }
+
+// =============================================================================
+// WEEKLY ACTIVITY
+// =============================================================================
+
+class _WeeklyActivity extends StatelessWidget {
+  final AppState state;
+
+  const _WeeklyActivity({
+    required this.state,
+  });
+
+  List<int> _counts() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final start = today.subtract(const Duration(days: 6));
+    final counts = List<int>.filled(7, 0);
+
+    for (final progress in state.progress.values) {
+      final completedAt = progress.completedAt;
+      if (!progress.completed || completedAt == null) continue;
+
+      final day = DateTime(
+        completedAt.year,
+        completedAt.month,
+        completedAt.day,
+      );
+      final index = day.difference(start).inDays;
+
+      if (index >= 0 && index < 7) {
+        counts[index]++;
+      }
+    }
+
+    return counts;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final counts = _counts();
+    final total = counts.fold<int>(0, (sum, value) => sum + value);
+    final maxCount = counts.fold<int>(0, mathMax);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final start = today.subtract(const Duration(days: 6));
+
+    const labels = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+
+    return GlowCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'THIS WEEK',
+                  style: const TextStyle(
+                    color: muted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+              ),
+              Text(
+                '$total problems',
+                style: technicalTextStyle(
+                  color: acid,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ...List.generate(7, (index) {
+            final day = start.add(Duration(days: index));
+            final count = counts[index];
+            final ratio = maxCount == 0 ? 0.0 : count / maxCount;
+            final isToday = day == today;
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 32,
+                    child: Text(
+                      labels[day.weekday - 1],
+                      style: TextStyle(
+                        color: isToday ? acid : muted,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(99),
+                      child: LinearProgressIndicator(
+                        value: ratio,
+                        minHeight: 7,
+                        backgroundColor: line,
+                        color: acid,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  SizedBox(
+                    width: 18,
+                    child: Text(
+                      '$count',
+                      textAlign: TextAlign.right,
+                      style: technicalTextStyle(
+                        color: count > 0 ? null : muted,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+int mathMax(int a, int b) => a > b ? a : b;
 
 // =============================================================================
 // ACTIVITY HEATMAP
