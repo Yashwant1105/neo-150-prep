@@ -9,6 +9,7 @@ import '../data/local_repository.dart';
 import '../models/problem.dart';
 import '../models/achievement.dart';
 import '../services/supabase_service.dart';
+import '../services/streak_calculator.dart';
 
 final appControllerProvider =
     AsyncNotifierProvider<AppController, AppState>(AppController.new);
@@ -37,6 +38,7 @@ class AppState {
   final bool syncing;
   final Set<String> interviewedProblemIds;
   final List<Achievement> achievements;
+  final int persistedLongestStreak;
   final List<String> dailyPrepProblemIds;
   final String? dailyPrepDate;
   final List<String> dailyFocusTopics;
@@ -49,6 +51,7 @@ class AppState {
     this.syncing = false,
     this.interviewedProblemIds = const <String>{},
     this.achievements = const <Achievement>[],
+    this.persistedLongestStreak = 0,
     this.dailyPrepProblemIds = const <String>[],
     this.dailyPrepDate,
     this.dailyFocusTopics = const <String>[],
@@ -91,62 +94,18 @@ class AppState {
   }
 
   int get currentStreak {
-    final days = <String>{};
-
-    for (final p in progress.values) {
-      final d = p.completedAt;
-
-      if (p.completed && d != null) {
-        days.add(_dayKey(d));
-      }
-    }
-
-    var cursor = DateTime.now();
-
-    if (!days.contains(_dayKey(cursor))) {
-      cursor = cursor.subtract(const Duration(days: 1));
-    }
-
-    var streak = 0;
-
-    while (days.contains(_dayKey(cursor))) {
-      streak++;
-      cursor = cursor.subtract(const Duration(days: 1));
-    }
-
-    return streak;
+    return _streaks.current;
   }
 
   int get longestStreak {
-    final dates = progress.values
-        .where((p) => p.completedAt != null)
-        .map(
-          (p) => DateTime(
-            p.completedAt!.year,
-            p.completedAt!.month,
-            p.completedAt!.day,
-          ),
-        )
-        .toSet()
-        .toList()
-      ..sort();
-
-    if (dates.isEmpty) return 0;
-
-    var best = 1;
-    var run = 1;
-
-    for (var i = 1; i < dates.length; i++) {
-      if (dates[i].difference(dates[i - 1]).inDays == 1) {
-        run++;
-        best = math.max(best, run);
-      } else {
-        run = 1;
-      }
-    }
-
-    return best;
+    return math.max(_streaks.longest, persistedLongestStreak);
   }
+
+  StreakResult get _streaks => StreakCalculator.calculate(
+        progress.values
+            .where((p) => p.completed && p.completedAt != null)
+            .map((p) => p.completedAt!),
+      );
 
   List<Problem> get dueReviews => problems.where((p) {
         final r = progress[p.id];
@@ -465,6 +424,7 @@ class AppState {
     bool? syncing,
     Set<String>? interviewedProblemIds,
     List<Achievement>? achievements,
+    int? persistedLongestStreak,
     List<String>? dailyPrepProblemIds,
     String? dailyPrepDate,
     List<String>? dailyFocusTopics,
@@ -478,6 +438,8 @@ class AppState {
       interviewedProblemIds:
           interviewedProblemIds ?? this.interviewedProblemIds,
       achievements: achievements ?? this.achievements,
+      persistedLongestStreak:
+          persistedLongestStreak ?? this.persistedLongestStreak,
       dailyPrepProblemIds: dailyPrepProblemIds ?? this.dailyPrepProblemIds,
       dailyPrepDate: dailyPrepDate ?? this.dailyPrepDate,
       dailyFocusTopics: dailyFocusTopics ?? this.dailyFocusTopics,
@@ -530,6 +492,7 @@ class AppController extends AsyncNotifier<AppState> {
     var progress = localProgress;
     var interviewedProblemIds = <String>{};
     var achievements = <Achievement>[];
+    var persistedLongestStreak = (prefs['longestStreak'] as num?)?.toInt() ?? 0;
 
     var dailyGoal = prefs['dailyGoal'] ?? 2;
     var dailyFocusDate = prefs['dailyFocusDate']?.toString();
@@ -574,9 +537,7 @@ class AppController extends AsyncNotifier<AppState> {
       try {
         final rows = await _remote.fetchProgress(userId);
 
-        final cloudProgress = Map<String, ProblemProgress>.from(
-          localProgress,
-        );
+        final cloudProgress = <String, ProblemProgress>{};
 
         for (final row in rows) {
           final slug = row['problems']['slug'] as String;
@@ -606,12 +567,22 @@ class AppController extends AsyncNotifier<AppState> {
           );
         }
 
+        final pending = await _local.loadSyncQueue(userId);
+        for (final operation in pending) {
+          final problemId = operation['problemId']?.toString();
+          if (problemId == null) continue;
+
+          cloudProgress[problemId] = _progressFromMap(operation);
+        }
+
         progress = cloudProgress;
 
         await _local.saveProgress(
           userId,
           progress,
         );
+
+        persistedLongestStreak = await _persistLongestStreak(userId, progress);
 
         // Load the daily goal from Supabase.
         final cloudDailyGoal = await _remote.fetchDailyGoal(userId);
@@ -713,6 +684,7 @@ class AppController extends AsyncNotifier<AppState> {
       dailyGoal: dailyGoal,
       interviewedProblemIds: interviewedProblemIds,
       achievements: achievements,
+      persistedLongestStreak: persistedLongestStreak,
       dailyPrepProblemIds: dailyPrepProblemIds,
       dailyPrepDate: todayKey,
       dailyFocusTopics: dailyFocusTopics,
@@ -821,6 +793,16 @@ class AppController extends AsyncNotifier<AppState> {
       userId,
       updated,
     );
+
+    if (userId != null) {
+      final persistedLongestStreak =
+          await _persistLongestStreak(userId, updated);
+      state = AsyncData(
+        state.value!.copyWith(
+          persistedLongestStreak: persistedLongestStreak,
+        ),
+      );
+    }
 
     // Check achievements immediately after completion.
     if (completed && userId != null) {
@@ -1412,9 +1394,7 @@ class AppController extends AsyncNotifier<AppState> {
 
       final rows = await _remote.fetchProgress(user.id);
 
-      final updated = Map<String, ProblemProgress>.from(
-        current.progress,
-      );
+      final updated = <String, ProblemProgress>{};
 
       for (final row in rows) {
         final problem = current.problems.firstWhere(
@@ -1442,6 +1422,9 @@ class AppController extends AsyncNotifier<AppState> {
         );
       }
 
+      final persistedLongestStreak =
+          await _persistLongestStreak(user.id, updated);
+
       await _local.saveProgress(
         user.id,
         updated,
@@ -1450,6 +1433,7 @@ class AppController extends AsyncNotifier<AppState> {
       state = AsyncData(
         current.copyWith(
           progress: updated,
+          persistedLongestStreak: persistedLongestStreak,
           syncing: false,
           interviewedProblemIds: interviewIds,
         ),
@@ -1467,6 +1451,55 @@ class AppController extends AsyncNotifier<AppState> {
           syncing: false,
         ),
       );
+    }
+  }
+
+  ProblemProgress _progressFromMap(Map<String, dynamic> value) {
+    return ProblemProgress(
+      completed: value['completed'] == true,
+      completedAt: value['completedAt'] == null
+          ? null
+          : DateTime.tryParse(value['completedAt'].toString()),
+      notes: value['notes'] ?? '',
+      reviewDueAt: value['reviewDueAt'] == null
+          ? null
+          : DateTime.tryParse(value['reviewDueAt'].toString()),
+      lastReviewedAt: value['lastReviewedAt'] == null
+          ? null
+          : DateTime.tryParse(value['lastReviewedAt'].toString()),
+    );
+  }
+
+  Future<int> _persistLongestStreak(
+    String userId,
+    Map<String, ProblemProgress> progress,
+  ) async {
+    final calculated = StreakCalculator.calculate(
+      progress.values
+          .where((p) => p.completed && p.completedAt != null)
+          .map((p) => p.completedAt!),
+    ).longest;
+
+    final prefs = await _local.loadPrefs(userId);
+    final locallyStored = (prefs['longestStreak'] as num?)?.toInt() ?? 0;
+
+    try {
+      final stored = await _remote.fetchLongestStreak(userId);
+      final highWaterMark =
+          math.max(calculated, math.max(stored, locallyStored));
+      if (highWaterMark > stored) {
+        await _remote.saveLongestStreak(userId, highWaterMark);
+      }
+      prefs['longestStreak'] = highWaterMark;
+      await _local.savePrefs(userId, prefs);
+      return highWaterMark;
+    } catch (e, stack) {
+      debugPrint('Longest streak sync failed: $e');
+      debugPrintStack(stackTrace: stack);
+      final highWaterMark = math.max(calculated, locallyStored);
+      prefs['longestStreak'] = highWaterMark;
+      await _local.savePrefs(userId, prefs);
+      return highWaterMark;
     }
   }
 }

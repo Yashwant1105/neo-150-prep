@@ -55,12 +55,15 @@ class AuthGate extends ConsumerStatefulWidget {
   ConsumerState<AuthGate> createState() => _AuthGateState();
 }
 
-class _AuthGateState extends ConsumerState<AuthGate> {
+class _AuthGateState extends ConsumerState<AuthGate>
+    with WidgetsBindingObserver {
   Session? _session;
 
   @override
   void initState() {
     super.initState();
+
+    WidgetsBinding.instance.addObserver(this);
 
     // Get the session that may already exist when the app starts.
     _session = SupabaseService.currentSession;
@@ -82,8 +85,23 @@ class _AuthGateState extends ConsumerState<AuthGate> {
       // Refresh app data after login.
       if (session != null) {
         ref.invalidate(appControllerProvider);
+      } else {
+        ref.invalidate(appControllerProvider);
       }
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+
+    ref.invalidate(appControllerProvider);
   }
 
   @override

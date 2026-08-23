@@ -248,6 +248,26 @@ class SupabaseService {
     );
   }
 
+  Future<int> fetchLongestStreak(String userId) async {
+    final row = await client
+        .from('user_stats')
+        .select('longest_streak')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    return (row?['longest_streak'] as int?) ?? 0;
+  }
+
+  Future<void> saveLongestStreak(String userId, int longestStreak) async {
+    await client.from('user_stats').upsert(
+      {
+        'user_id': userId,
+        'longest_streak': longestStreak,
+      },
+      onConflict: 'user_id',
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // DAILY FOCUS AREAS
   // ---------------------------------------------------------------------------
