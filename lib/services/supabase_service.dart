@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/problem.dart';
+import 'notification_service.dart';
 
 class SupabaseService {
   static bool get isConfigured {
@@ -45,7 +46,192 @@ class SupabaseService {
   // ---------------------------------------------------------------------------
 
   Future<void> signOut() async {
+    await NotificationService.instance.deactivateCurrentEndpoint();
     await client.auth.signOut();
+  }
+
+  Future<Map<String, dynamic>> fetchNotificationSettings() async {
+    final userId = currentSession?.user.id;
+    if (userId == null) return const <String, dynamic>{};
+
+    final row = await client
+        .from('notification_settings')
+        .select(
+          'notifications_enabled,daily_prep_reminder_enabled,'
+          'daily_goal_reminder_enabled,achievement_notifications_enabled,'
+          'streak_reminder_enabled',
+        )
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    return row ?? const <String, dynamic>{};
+  }
+
+  Future<void> setNotificationsEnabled(bool enabled) async {
+    final userId = currentSession?.user.id;
+    if (userId == null) return;
+
+    await client.from('notification_settings').upsert(
+      {
+        'user_id': userId,
+        'notifications_enabled': enabled,
+      },
+      onConflict: 'user_id',
+    );
+  }
+
+  Future<void> updateDailyPrepReminderEnabled(bool enabled) async {
+    final userId = currentSession?.user.id;
+    if (userId == null) return;
+
+    await client.from('notification_settings').upsert(
+      {
+        'user_id': userId,
+        'daily_prep_reminder_enabled': enabled,
+      },
+      onConflict: 'user_id',
+    );
+  }
+
+  Future<void> updateDailyGoalReminderEnabled(bool enabled) async {
+    final userId = currentSession?.user.id;
+    if (userId == null) return;
+
+    await client.from('notification_settings').upsert(
+      {
+        'user_id': userId,
+        'daily_goal_reminder_enabled': enabled,
+      },
+      onConflict: 'user_id',
+    );
+  }
+
+  Future<void> updateAchievementNotificationsEnabled(bool enabled) async {
+    final userId = currentSession?.user.id;
+    if (userId == null) return;
+
+    await client.from('notification_settings').upsert(
+      {
+        'user_id': userId,
+        'achievement_notifications_enabled': enabled,
+      },
+      onConflict: 'user_id',
+    );
+  }
+
+  Future<void> updateStreakReminderEnabled(bool enabled) async {
+    final userId = currentSession?.user.id;
+    if (userId == null) return;
+
+    await client.from('notification_settings').upsert(
+      {
+        'user_id': userId,
+        'streak_reminder_enabled': enabled,
+      },
+      onConflict: 'user_id',
+    );
+  }
+
+  Future<void> upsertFcmEndpoint(String token) async {
+    final userId = currentSession?.user.id;
+    if (userId == null) return;
+
+    final existing = await client
+        .from('notification_endpoints')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('provider', 'fcm')
+        .eq('device_token', token)
+        .maybeSingle();
+
+    final values = {
+      'user_id': userId,
+      'provider': 'fcm',
+      'platform': 'android',
+      'device_token': token,
+      'active': true,
+      'last_seen_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+
+    if (existing == null) {
+      await client.from('notification_endpoints').insert(values);
+    } else {
+      await client
+          .from('notification_endpoints')
+          .update(values)
+          .eq('id', existing['id']);
+    }
+  }
+
+  Future<void> deactivateFcmEndpoint(String token) async {
+    final userId = currentSession?.user.id;
+    if (userId == null) return;
+
+    await client
+        .from('notification_endpoints')
+        .update({
+          'active': false,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('user_id', userId)
+        .eq('provider', 'fcm')
+        .eq('device_token', token);
+  }
+
+  Future<void> upsertWebPushEndpoint({
+    required String endpoint,
+    required String p256dh,
+    required String auth,
+    required Map<String, dynamic> metadata,
+  }) async {
+    final userId = currentSession?.user.id;
+    if (userId == null) return;
+
+    final values = {
+      'user_id': userId,
+      'provider': 'web_push',
+      'platform': 'web',
+      'endpoint': endpoint,
+      'p256dh': p256dh,
+      'auth': auth,
+      'subscription_metadata': metadata,
+      'active': true,
+      'last_seen_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+
+    final existing = await client
+        .from('notification_endpoints')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('provider', 'web_push')
+        .eq('endpoint', endpoint)
+        .maybeSingle();
+
+    if (existing == null) {
+      await client.from('notification_endpoints').insert(values);
+    } else {
+      await client
+          .from('notification_endpoints')
+          .update(values)
+          .eq('id', existing['id']);
+    }
+  }
+
+  Future<void> deactivateWebPushEndpoint(String endpoint) async {
+    final userId = currentSession?.user.id;
+    if (userId == null) return;
+
+    await client
+        .from('notification_endpoints')
+        .update({
+          'active': false,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('user_id', userId)
+        .eq('provider', 'web_push')
+        .eq('endpoint', endpoint);
   }
 
   // ---------------------------------------------------------------------------

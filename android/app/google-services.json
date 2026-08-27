@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "230745593127",
+    "project_id": "neo-150-prep",
+    "storage_bucket": "neo-150-prep.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:230745593127:android:5bfa8d57e08415b772c502",
+        "android_client_info": {
+          "package_name": "com.example.mins_prep"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCyE0FZ-Sx-N2YtaGphl-K6OUpE5QI735c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
