@@ -768,7 +768,7 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
       appControllerProvider.notifier,
     );
 
-    await controller.toggleComplete(
+    final motivation = await controller.toggleComplete(
       widget.problem,
     );
 
@@ -791,6 +791,7 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
 
       _showCompletionReward(
         updatedState,
+        motivation: motivation,
       );
     }
   }
@@ -800,8 +801,9 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
   // ---------------------------------------------------------------------------
 
   void _showCompletionReward(
-    AppState state,
-  ) {
+    AppState state, {
+    String? motivation,
+  }) {
     final streak = state.currentStreak;
 
     final compliment = _getCompliment(
@@ -837,6 +839,7 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
                   streak: streak,
                   totalCompleted: state.completed,
                   compliment: compliment,
+                  motivation: motivation,
                   onNext: () {
                     Navigator.pop(
                       dialogContext,
@@ -1389,6 +1392,7 @@ class _CompletionRewardCard extends StatefulWidget {
   final int streak;
   final int totalCompleted;
   final String compliment;
+  final String? motivation;
   final VoidCallback onNext;
 
   const _CompletionRewardCard({
@@ -1397,6 +1401,7 @@ class _CompletionRewardCard extends StatefulWidget {
     required this.streak,
     required this.totalCompleted,
     required this.compliment,
+    this.motivation,
     required this.onNext,
   });
 
@@ -1547,6 +1552,31 @@ class _CompletionRewardCardState extends State<_CompletionRewardCard>
                 fontWeight: FontWeight.w700,
               ),
             ),
+            if (widget.motivation != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                decoration: BoxDecoration(
+                  color: acid.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: acid.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Text(
+                  widget.motivation!,
+                  style: humanTextStyle(
+                    fontSize: 14,
+                    height: 1.4,
+                    fontWeight: FontWeight.w600,
+                    color: white,
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 22),
             SizedBox(
               width: double.infinity,
