@@ -1071,6 +1071,15 @@ class AppController extends AsyncNotifier<AppState> {
         newlyUnlocked.map((a) => a.id).toList(),
       );
 
+      // Enqueue achievement notifications if enabled.
+      final settings = await _remote.fetchNotificationSettings();
+      if (settings['notifications_enabled'] == true &&
+          settings['achievement_notifications_enabled'] == true) {
+        for (final achievement in newlyUnlocked) {
+          await _remote.enqueueAchievementNotification(userId, achievement.id);
+        }
+      }
+
       for (int i = 0; i < newlyUnlocked.length; i++) {
         debugPrint('Achievement unlocked.');
       }
