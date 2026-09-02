@@ -243,7 +243,13 @@ class ProfileScreen extends ConsumerWidget {
         child: CircularProgressIndicator(),
       ),
       error: (e, _) => Center(
-        child: Text('$e'),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'Unable to load profile: $e',
+            textAlign: TextAlign.center,
+          ),
+        ),
       ),
       data: (s) {
         final user = SupabaseService.currentSession?.user;
@@ -595,7 +601,7 @@ class ProfileScreen extends ConsumerWidget {
     // =======================================================================
 
     final payload = {
-      'app': "Neo 150 Prep",
+      'app': "NEO 150 PREP",
       'exported_at': DateTime.now().toIso8601String(),
       'xp': s.xp,
       'level': s.level,

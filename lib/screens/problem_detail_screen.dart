@@ -977,7 +977,8 @@ class _ProblemDetailScreenState extends ConsumerState<ProblemDetailScreen> {
     }
 
     if (diff.isNegative) {
-      return 'in ${-diff.inDays} days';
+      final days = -diff.inDays;
+      return 'in $days day${days == 1 ? '' : 's'}';
     }
 
     return '${diff.inDays} days ago';

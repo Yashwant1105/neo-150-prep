@@ -21,9 +21,6 @@ Future<void> main() async {
     );
 
     debugPrint('SUPABASE INITIALIZED');
-    debugPrint(
-      'INITIAL SESSION: ${Supabase.instance.client.auth.currentSession?.user.id}',
-    );
   } else {
     debugPrint('SUPABASE NOT CONFIGURED');
   }
@@ -81,7 +78,6 @@ class _AuthGateState extends ConsumerState<AuthGate>
       final session = data.session;
 
       debugPrint('AUTH EVENT: $event');
-      debugPrint('AUTH SESSION: ${session?.user.id}');
 
       if (!mounted) return;
 

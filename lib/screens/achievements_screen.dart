@@ -19,7 +19,13 @@ class AchievementsScreen extends ConsumerWidget {
         child: CircularProgressIndicator(),
       ),
       error: (e, _) => Center(
-        child: Text('$e'),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'Unable to load achievements: $e',
+            textAlign: TextAlign.center,
+          ),
+        ),
       ),
       data: (state) {
         final achievements = state.achievements;
@@ -112,11 +118,43 @@ class AchievementsScreen extends ConsumerWidget {
 
               const SizedBox(height: 10),
 
-              ...achievements.map(
-                (achievement) => _AchievementCard(
-                  achievement: achievement,
+              if (achievements.isEmpty)
+                GlowCard(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      const Icon(
+                        Icons.emoji_events_outlined,
+                        color: muted,
+                        size: 34,
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'No achievements yet',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Start solving to unlock your first achievement.',
+                        textAlign: TextAlign.center,
+                        style: humanTextStyle(
+                          color: muted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                ...achievements.map(
+                  (achievement) => _AchievementCard(
+                    achievement: achievement,
+                  ),
                 ),
-              ),
             ],
           ),
         );

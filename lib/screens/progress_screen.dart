@@ -18,7 +18,13 @@ class ProgressScreen extends ConsumerWidget {
         child: CircularProgressIndicator(),
       ),
       error: (e, _) => Center(
-        child: Text('$e'),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'Unable to load progress: $e',
+            textAlign: TextAlign.center,
+          ),
+        ),
       ),
       data: (s) => Scaffold(
         appBar: AppBar(
@@ -259,7 +265,7 @@ class ProgressScreen extends ConsumerWidget {
                 ),
               ),
 
-            const SizedBox(height: 18),
+            const SizedBox(height: 24),
 
             // ===============================================================
             // ACTIVITY

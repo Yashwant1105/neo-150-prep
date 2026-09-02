@@ -234,7 +234,7 @@ class _ProblemsScreenState extends ConsumerState<ProblemsScreen> {
                               'Default',
                               'Difficulty',
                               'Topic',
-                              'Completed/incomplete',
+                              'Completed/Incomplete',
                               'Recently completed',
                               'Recommended next',
                             ],

@@ -69,7 +69,10 @@ class AppState {
   int get xp => progress.entries.fold(0, (sum, e) {
         if (!e.value.completed) return sum;
 
-        final p = problems.firstWhere((p) => p.id == e.key);
+        final p = problems.firstWhere(
+          (p) => p.id == e.key,
+          orElse: () => problems.first,
+        );
 
         return sum +
             (p.difficulty == 'Easy'
@@ -545,6 +548,10 @@ class AppController extends AsyncNotifier<AppState> {
 
           final problem = problems.firstWhere(
             (p) => p.slug == slug,
+            orElse: () {
+              debugPrint('Skipping progress for unknown slug: $slug');
+              return problems.first;
+            },
           );
 
           cloudProgress[problem.id] = ProblemProgress(
@@ -920,11 +927,8 @@ class AppController extends AsyncNotifier<AppState> {
           dayCounts.values.where((count) => count >= current.dailyGoal).length;
 
       debugPrint(
-        'Achievement check: '
-        '$completedCount completed, '
-        '${current.achievements.length} definitions loaded, '
-        '$completedInterviewSessions interview sessions, '
-        '$daysMeetingDailyGoal daily-goal days.',
+        'Achievement check: $completedCount completed, '
+        '${current.achievements.length} definitions loaded.',
       );
 
       final newlyUnlocked = <Achievement>[];
@@ -1067,10 +1071,8 @@ class AppController extends AsyncNotifier<AppState> {
         newlyUnlocked.map((a) => a.id).toList(),
       );
 
-      for (final achievement in newlyUnlocked) {
-        debugPrint(
-          '🏆 Achievement unlocked: ${achievement.name}',
-        );
+      for (int i = 0; i < newlyUnlocked.length; i++) {
+        debugPrint('Achievement unlocked.');
       }
 
       // Return IDs of newly unlocked achievements for motivation detection
@@ -1374,6 +1376,10 @@ class AppController extends AsyncNotifier<AppState> {
 
           final problem = state.value!.problems.firstWhere(
             (p) => p.id == problemId,
+            orElse: () {
+              debugPrint('Skipping sync for unknown problem ID: $problemId');
+              return state.value!.problems.first;
+            },
           );
 
           final progress = ProblemProgress(
@@ -1520,8 +1526,13 @@ class AppController extends AsyncNotifier<AppState> {
       final updated = <String, ProblemProgress>{};
 
       for (final row in rows) {
+        final slug = row['problems']['slug'] as String;
         final problem = current.problems.firstWhere(
-          (p) => p.slug == (row['problems']['slug'] as String),
+          (p) => p.slug == slug,
+          orElse: () {
+            debugPrint('Skipping cloud sync for unknown slug: $slug');
+            return current.problems.first;
+          },
         );
 
         updated[problem.id] = ProblemProgress(

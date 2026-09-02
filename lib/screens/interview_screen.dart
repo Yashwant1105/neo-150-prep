@@ -348,7 +348,13 @@ class _InterviewScreenState extends ConsumerState<InterviewScreen> {
           child: CircularProgressIndicator(),
         ),
         error: (e, _) => Center(
-          child: Text('$e'),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'Unable to load interview: $e',
+              textAlign: TextAlign.center,
+            ),
+          ),
         ),
         data: (appState) {
           if (_problem == null) {

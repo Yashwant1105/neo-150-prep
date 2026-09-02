@@ -241,8 +241,15 @@ class SupabaseService {
   /// Finds the actual UUID of a problem in Supabase
   /// using the stable slug bundled with the Flutter app.
   Future<String> getProblemUuid(String slug) async {
-    final result =
-        await client.from('problems').select('id').eq('slug', slug).single();
+    final result = await client
+        .from('problems')
+        .select('id')
+        .eq('slug', slug)
+        .maybeSingle();
+
+    if (result == null) {
+      throw Exception('Problem not found: $slug');
+    }
 
     return result['id'] as String;
   }

@@ -439,6 +439,7 @@ class _HistoryCard extends StatelessWidget {
     if (diff.inDays == 0) return 'Today';
     if (diff.inDays == 1) return 'Yesterday';
     if (diff.inDays > 1) return '${diff.inDays} days ago';
+    if (diff.inDays < 0) return 'Soon';
     return 'Recently';
   }
 }

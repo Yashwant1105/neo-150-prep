@@ -880,10 +880,6 @@ class _Stat extends StatelessWidget {
 // DAILY PREP
 // =============================================================================
 
-// =============================================================================
-// DAILY PREP
-// =============================================================================
-
 class _DailyPrep extends StatelessWidget {
   final AppState state;
 
@@ -1033,8 +1029,7 @@ class _DailyPrep extends StatelessWidget {
               (index) {
                 final recommendation = prepRecommendations[index];
                 final problem = recommendation.problem;
-                final isReview =
-                    recommendation.type == DailyPrepType.review;
+                final isReview = recommendation.type == DailyPrepType.review;
                 final isWeakTopic =
                     recommendation.type == DailyPrepType.weakTopic;
                 final isCompleted =
