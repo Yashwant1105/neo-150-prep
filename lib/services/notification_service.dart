@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'supabase_service.dart';
 import 'web_push_platform_stub.dart'
@@ -27,8 +28,16 @@ class NotificationService {
   NotificationService._();
 
   static final instance = NotificationService._();
+  static const _androidChannel = AndroidNotificationChannel(
+    'achievement_notifications',
+    'Achievement notifications',
+    description: 'Notifications for newly unlocked achievements.',
+    importance: Importance.high,
+  );
 
   FirebaseMessaging get _messaging => FirebaseMessaging.instance;
+  final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
 
   StreamSubscription<String>? _tokenSubscription;
   StreamSubscription<RemoteMessage>? _messageSubscription;
@@ -45,6 +54,17 @@ class NotificationService {
     }
 
     await Firebase.initializeApp();
+
+    debugPrint('Initializing local notifications');
+    const initializationSettings = InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+    );
+    await _localNotifications.initialize(initializationSettings);
+    await _localNotifications
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(_androidChannel);
+    debugPrint('Local notifications initialized');
 
     FirebaseMessaging.onBackgroundMessage(
       firebaseMessagingBackgroundHandler,
@@ -227,6 +247,39 @@ class NotificationService {
       'FCM foreground message: ${message.messageId}, '
       'category: ${message.data['category']}',
     );
+    unawaited(_showForegroundNotification(message));
+  }
+
+  Future<void> _showForegroundNotification(RemoteMessage message) async {
+    final title = message.notification?.title ??
+        message.data['title'] ??
+        message.data['notification_title'] ??
+        'Neo 150 Prep';
+    final body = message.notification?.body ??
+        message.data['body'] ??
+        message.data['notification_body'] ??
+        'You have a new notification.';
+
+    final details = NotificationDetails(
+      android: AndroidNotificationDetails(
+        _androidChannel.id,
+        _androidChannel.name,
+        channelDescription: _androidChannel.description,
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+      ),
+    );
+
+    final notificationId = message.messageId?.hashCode ??
+        DateTime.now().millisecondsSinceEpoch.remainder(1 << 31);
+    await _localNotifications.show(
+      notificationId,
+      title,
+      body,
+      details,
+    );
+    debugPrint('Local notification shown: $notificationId');
   }
 
   void _handleOpenedMessage(RemoteMessage message) {
