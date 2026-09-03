@@ -638,21 +638,4 @@ class SupabaseService {
           onConflict: 'user_id,achievement_id',
         );
   }
-
-  Future<void> enqueueAchievementNotification(
-    String userId,
-    String achievementId,
-  ) async {
-    try {
-      await client.rpc('enqueue_notification_delivery', params: {
-        'p_user_id': userId,
-        'p_category': 'achievement',
-        'p_local_date': null,
-        'p_event_identifier': achievementId,
-        'p_event_version': 'v1',
-      });
-    } catch (e) {
-      debugPrint('Failed to enqueue achievement notification: $e');
-    }
-  }
 }

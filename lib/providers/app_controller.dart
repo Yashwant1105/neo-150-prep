@@ -921,8 +921,14 @@ class AppController extends AsyncNotifier<AppState> {
         dayCounts[dayKey] = (dayCounts[dayKey] ?? 0) + 1;
       }
 
-      final completedInterviewSessions =
-          await _remote.fetchCompletedInterviewSessionCount(userId);
+      final completedInterviewSessions = await (() async {
+        try {
+          return await _remote.fetchCompletedInterviewSessionCount(userId);
+        } catch (e) {
+          debugPrint('Failed to fetch interview session count: $e');
+          return 0;
+        }
+      })();
       final daysMeetingDailyGoal =
           dayCounts.values.where((count) => count >= current.dailyGoal).length;
 
@@ -970,10 +976,15 @@ class AppController extends AsyncNotifier<AppState> {
             break;
 
           case 'tree climber':
-            shouldUnlock = topicTotals.entries.any(
-              (entry) =>
-                  entry.key.toLowerCase().contains('tree') &&
-                  (topicCompleted[entry.key] ?? 0) == entry.value,
+            final treeEntry = topicTotals.entries.firstWhere(
+              (entry) => entry.key.toLowerCase().contains('tree'),
+              orElse: () => const MapEntry('', 0),
+            );
+            final treeTotal = treeEntry.value;
+            final treeCompleted = topicCompleted[treeEntry.key] ?? 0;
+            shouldUnlock = treeCompleted == treeTotal && treeTotal > 0;
+            debugPrint(
+              'Tree Climber: total=$treeTotal, completed=$treeCompleted, shouldUnlock=$shouldUnlock',
             );
             break;
 
@@ -1038,6 +1049,9 @@ class AppController extends AsyncNotifier<AppState> {
         return [];
       }
 
+      debugPrint(
+          'Achievement check: newlyUnlocked count=${newlyUnlocked.length}, IDs=${newlyUnlocked.map((a) => a.id).toList()}');
+
       final now = DateTime.now();
 
       final updatedAchievements = current.achievements.map((achievement) {
@@ -1070,15 +1084,6 @@ class AppController extends AsyncNotifier<AppState> {
         userId,
         newlyUnlocked.map((a) => a.id).toList(),
       );
-
-      // Enqueue achievement notifications if enabled.
-      final settings = await _remote.fetchNotificationSettings();
-      if (settings['notifications_enabled'] == true &&
-          settings['achievement_notifications_enabled'] == true) {
-        for (final achievement in newlyUnlocked) {
-          await _remote.enqueueAchievementNotification(userId, achievement.id);
-        }
-      }
 
       for (int i = 0; i < newlyUnlocked.length; i++) {
         debugPrint('Achievement unlocked.');
