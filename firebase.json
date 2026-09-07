@@ -6,6 +6,21 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "headers": [
+      {
+        "source": "/push-scope/push_service_worker.js",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/javascript"
+          },
+          {
+            "key": "Service-Worker-Allowed",
+            "value": "/push-scope/"
+          }
+        ]
+      }
+    ],
     "rewrites": [
       {
         "source": "**",

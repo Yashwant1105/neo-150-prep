@@ -6,6 +6,7 @@ import 'config/app_config.dart';
 import 'providers/app_controller.dart';
 import 'screens/auth_screen.dart';
 import 'screens/shell.dart';
+import 'services/notification_service.dart';
 import 'services/supabase_service.dart';
 import 'widgets/app_theme.dart';
 
@@ -20,12 +21,11 @@ Future<void> main() async {
     );
 
     debugPrint('SUPABASE INITIALIZED');
-    debugPrint(
-      'INITIAL SESSION: ${Supabase.instance.client.auth.currentSession?.user.id}',
-    );
   } else {
     debugPrint('SUPABASE NOT CONFIGURED');
   }
+
+  await NotificationService.instance.initialize();
 
   runApp(
     const ProviderScope(
@@ -68,15 +68,27 @@ class _AuthGateState extends ConsumerState<AuthGate>
     // Get the session that may already exist when the app starts.
     _session = SupabaseService.currentSession;
 
+    if (_session != null) {
+      debugPrint('[NOTIF SYNC] call starting: initial session');
+      NotificationService.instance.syncForCurrentUser();
+      debugPrint('[NOTIF SYNC] call returned: initial session');
+    }
+
     // Listen for login/logout changes.
     SupabaseService.client.auth.onAuthStateChange.listen((data) {
       final event = data.event;
       final session = data.session;
 
       debugPrint('AUTH EVENT: $event');
-      debugPrint('AUTH SESSION: ${session?.user.id}');
 
-      if (!mounted) return;
+      if (session == null && event == AuthChangeEvent.initialSession) {
+        debugPrint('[AUTH] initialSession has null session');
+      }
+
+      if (!mounted) {
+        debugPrint('[AUTH] AuthGate unmounted, skipping sync');
+        return;
+      }
 
       setState(() {
         _session = session;
@@ -84,6 +96,9 @@ class _AuthGateState extends ConsumerState<AuthGate>
 
       // Refresh app data after login.
       if (session != null) {
+        debugPrint('[NOTIF SYNC] call starting: auth event');
+        NotificationService.instance.syncForCurrentUser();
+        debugPrint('[NOTIF SYNC] call returned: auth event');
         ref.invalidate(appControllerProvider);
       } else {
         ref.invalidate(appControllerProvider);

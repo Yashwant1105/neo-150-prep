@@ -10,6 +10,7 @@ import '../models/problem.dart';
 import '../models/achievement.dart';
 import '../services/supabase_service.dart';
 import '../services/streak_calculator.dart';
+import '../services/motivation_service.dart';
 
 final appControllerProvider =
     AsyncNotifierProvider<AppController, AppState>(AppController.new);
@@ -68,7 +69,10 @@ class AppState {
   int get xp => progress.entries.fold(0, (sum, e) {
         if (!e.value.completed) return sum;
 
-        final p = problems.firstWhere((p) => p.id == e.key);
+        final p = problems.firstWhere(
+          (p) => p.id == e.key,
+          orElse: () => problems.first,
+        );
 
         return sum +
             (p.difficulty == 'Easy'
@@ -544,6 +548,10 @@ class AppController extends AsyncNotifier<AppState> {
 
           final problem = problems.firstWhere(
             (p) => p.slug == slug,
+            orElse: () {
+              debugPrint('Skipping progress for unknown slug: $slug');
+              return problems.first;
+            },
           );
 
           cloudProgress[problem.id] = ProblemProgress(
@@ -760,7 +768,7 @@ class AppController extends AsyncNotifier<AppState> {
     }
   }
 
-  Future<void> toggleComplete(
+  Future<String?> toggleComplete(
     Problem problem,
   ) async {
     final current = state.value!;
@@ -805,10 +813,27 @@ class AppController extends AsyncNotifier<AppState> {
     }
 
     // Check achievements immediately after completion.
+    // Capture achievements before check to detect newly unlocked ones.
+    final achievementsBeforeCheck = state.value!.achievements;
+    List<String>? newlyUnlockedAchievementIds;
     if (completed && userId != null) {
-      await _checkAchievements(
+      newlyUnlockedAchievementIds = await _checkAchievements(
         updated,
         userId,
+        achievementsBeforeCheck,
+      );
+
+      // Track session activity
+      await _local.incrementSessionCompleted(userId);
+    }
+
+    // Check for AI motivation after achievements are checked
+    String? motivation;
+    if (completed && newlyUnlockedAchievementIds != null) {
+      motivation = await checkAndGenerateMotivation(
+        completedProblem: problem,
+        updatedProgress: updated,
+        newlyUnlockedAchievementIds: newlyUnlockedAchievementIds,
       );
     }
 
@@ -817,11 +842,14 @@ class AppController extends AsyncNotifier<AppState> {
       problem,
       updated[problem.id]!,
     );
+
+    return motivation;
   }
 
-  Future<void> _checkAchievements(
+  Future<List<String>> _checkAchievements(
     Map<String, ProblemProgress> progress,
     String userId,
+    List<Achievement> previousAchievements,
   ) async {
     try {
       var current = state.value!;
@@ -849,7 +877,7 @@ class AppController extends AsyncNotifier<AppState> {
           debugPrint(
             'Achievement check skipped: no definitions loaded.',
           );
-          return;
+          return [];
         }
 
         state = AsyncData(
@@ -893,17 +921,20 @@ class AppController extends AsyncNotifier<AppState> {
         dayCounts[dayKey] = (dayCounts[dayKey] ?? 0) + 1;
       }
 
-      final completedInterviewSessions =
-          await _remote.fetchCompletedInterviewSessionCount(userId);
+      final completedInterviewSessions = await (() async {
+        try {
+          return await _remote.fetchCompletedInterviewSessionCount(userId);
+        } catch (e) {
+          debugPrint('Failed to fetch interview session count: $e');
+          return 0;
+        }
+      })();
       final daysMeetingDailyGoal =
           dayCounts.values.where((count) => count >= current.dailyGoal).length;
 
       debugPrint(
-        'Achievement check: '
-        '$completedCount completed, '
-        '${current.achievements.length} definitions loaded, '
-        '$completedInterviewSessions interview sessions, '
-        '$daysMeetingDailyGoal daily-goal days.',
+        'Achievement check: $completedCount completed, '
+        '${current.achievements.length} definitions loaded.',
       );
 
       final newlyUnlocked = <Achievement>[];
@@ -945,10 +976,15 @@ class AppController extends AsyncNotifier<AppState> {
             break;
 
           case 'tree climber':
-            shouldUnlock = topicTotals.entries.any(
-              (entry) =>
-                  entry.key.toLowerCase().contains('tree') &&
-                  (topicCompleted[entry.key] ?? 0) == entry.value,
+            final treeEntry = topicTotals.entries.firstWhere(
+              (entry) => entry.key.toLowerCase().contains('tree'),
+              orElse: () => const MapEntry('', 0),
+            );
+            final treeTotal = treeEntry.value;
+            final treeCompleted = topicCompleted[treeEntry.key] ?? 0;
+            shouldUnlock = treeCompleted == treeTotal && treeTotal > 0;
+            debugPrint(
+              'Tree Climber: total=$treeTotal, completed=$treeCompleted, shouldUnlock=$shouldUnlock',
             );
             break;
 
@@ -1010,8 +1046,11 @@ class AppController extends AsyncNotifier<AppState> {
       }
 
       if (newlyUnlocked.isEmpty) {
-        return;
+        return [];
       }
+
+      debugPrint(
+          'Achievement check: newlyUnlocked count=${newlyUnlocked.length}, IDs=${newlyUnlocked.map((a) => a.id).toList()}');
 
       final now = DateTime.now();
 
@@ -1046,11 +1085,12 @@ class AppController extends AsyncNotifier<AppState> {
         newlyUnlocked.map((a) => a.id).toList(),
       );
 
-      for (final achievement in newlyUnlocked) {
-        debugPrint(
-          '🏆 Achievement unlocked: ${achievement.name}',
-        );
+      for (int i = 0; i < newlyUnlocked.length; i++) {
+        debugPrint('Achievement unlocked.');
       }
+
+      // Return IDs of newly unlocked achievements for motivation detection
+      return newlyUnlocked.map((a) => a.id).toList();
     } catch (e, stack) {
       debugPrint(
         'Achievement check failed: $e',
@@ -1058,7 +1098,106 @@ class AppController extends AsyncNotifier<AppState> {
       debugPrintStack(
         stackTrace: stack,
       );
+      return [];
     }
+  }
+
+  Future<String?> checkAndGenerateMotivation({
+    required Problem completedProblem,
+    required Map<String, ProblemProgress> updatedProgress,
+    required List<String> newlyUnlockedAchievementIds,
+  }) async {
+    final current = state.value!;
+    final userId = SupabaseService.currentSession?.user.id;
+
+    if (userId == null) {
+      return null;
+    }
+
+    String? eventType;
+
+    // Check for meaningful events
+    if (current.todayCompleted == current.dailyGoal) {
+      eventType = 'daily_goal';
+    } else if (current.currentStreak == 7) {
+      eventType = 'streak_7';
+    } else if (current.currentStreak == 14) {
+      eventType = 'streak_14';
+    } else if (current.currentStreak == 30) {
+      eventType = 'streak_30';
+    } else if (completedProblem.difficulty == 'Hard') {
+      // Hard problem only triggers if session is meaningful (3+ problems)
+      final sessionCompleted = await _local.getSessionCompletedCount(userId);
+      if (sessionCompleted >= 3) {
+        eventType = 'hard_problem';
+      }
+    }
+
+    // Check for newly unlocked achievements (passed from toggleComplete)
+    if (newlyUnlockedAchievementIds.isNotEmpty) {
+      eventType = 'achievement';
+    }
+
+    if (eventType == null) {
+      return null;
+    }
+
+    final shouldShow = await _local.shouldShowMotivation(userId, eventType);
+    if (!shouldShow) {
+      return null;
+    }
+
+    await _local.recordMotivationShown(userId, eventType);
+
+    final sessionCompleted = await _local.getSessionCompletedCount(userId);
+    final progressFacts = _buildMotivationFacts(
+      current: current,
+      completedProblem: completedProblem,
+      eventType: eventType,
+      sessionCompleted: sessionCompleted,
+    );
+
+    try {
+      final motivation = await MotivationService().getMotivation(
+        progressFacts: progressFacts,
+      );
+      return motivation;
+    } catch (e) {
+      debugPrint('Motivation generation failed: $e');
+      return MotivationService.getFallbackMessage(
+        eventType: eventType,
+        sessionCompleted: sessionCompleted,
+      );
+    }
+  }
+
+  String _buildMotivationFacts({
+    required AppState current,
+    required Problem completedProblem,
+    required String eventType,
+    required int sessionCompleted,
+  }) {
+    final facts = <String, dynamic>{};
+
+    facts['event_type'] = eventType;
+    facts['completed_today'] = current.todayCompleted;
+    facts['session_completed'] = sessionCompleted;
+    facts['daily_goal'] = current.dailyGoal;
+    facts['current_streak'] = current.currentStreak;
+    facts['total_completed'] = current.completed;
+    facts['total_problems'] = current.problems.length;
+    facts['problem_difficulty'] = completedProblem.difficulty;
+    facts['problem_topic'] = completedProblem.topic;
+
+    if (eventType == 'daily_goal') {
+      facts['goal_reached'] = true;
+    }
+
+    if (eventType.startsWith('streak_')) {
+      facts['streak_milestone'] = eventType.replaceAll('streak_', '');
+    }
+
+    return facts.entries.map((e) => '${e.key}: ${e.value}').join('\n');
   }
 
   Future<void> saveNotes(
@@ -1251,6 +1390,10 @@ class AppController extends AsyncNotifier<AppState> {
 
           final problem = state.value!.problems.firstWhere(
             (p) => p.id == problemId,
+            orElse: () {
+              debugPrint('Skipping sync for unknown problem ID: $problemId');
+              return state.value!.problems.first;
+            },
           );
 
           final progress = ProblemProgress(
@@ -1397,8 +1540,13 @@ class AppController extends AsyncNotifier<AppState> {
       final updated = <String, ProblemProgress>{};
 
       for (final row in rows) {
+        final slug = row['problems']['slug'] as String;
         final problem = current.problems.firstWhere(
-          (p) => p.slug == (row['problems']['slug'] as String),
+          (p) => p.slug == slug,
+          orElse: () {
+            debugPrint('Skipping cloud sync for unknown slug: $slug');
+            return current.problems.first;
+          },
         );
 
         updated[problem.id] = ProblemProgress(

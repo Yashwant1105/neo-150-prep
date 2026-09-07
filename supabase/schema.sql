@@ -56,11 +56,87 @@ create table if not exists public.user_achievements (
   primary key (user_id, achievement_id)
 );
 
-create table if not exists public.notifications_settings (
+create table if not exists public.notification_settings (
   user_id uuid primary key references auth.users(id) on delete cascade,
   streak_reminder_enabled boolean not null default true,
-  streak_reminder_time time not null default '20:00'
+  streak_reminder_time time not null default '14:30:00',
+  updated_at timestamptz not null default now()
 );
+
+alter table public.notification_settings
+  add column if not exists notifications_enabled boolean not null default false,
+  add column if not exists daily_prep_reminder_enabled boolean not null default false,
+  add column if not exists daily_goal_reminder_enabled boolean not null default false,
+  add column if not exists achievement_notifications_enabled boolean not null default false,
+  add column if not exists preferred_reminder_time time not null default '14:30:00',
+  add column if not exists timezone text not null default 'UTC',
+  add column if not exists created_at timestamptz not null default now();
+
+create table if not exists public.notification_endpoints (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  provider text not null check (provider in ('fcm', 'web_push')),
+  platform text not null check (platform in ('android', 'ios', 'web')),
+  device_token text,
+  endpoint text,
+  p256dh text,
+  auth text,
+  subscription_metadata jsonb not null default '{}'::jsonb,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  last_seen_at timestamptz,
+  check (
+    (provider = 'fcm' and device_token is not null and endpoint is null and p256dh is null and auth is null)
+    or
+    (provider = 'web_push' and endpoint is not null and p256dh is not null and auth is not null and device_token is null)
+  ),
+  check (
+    (provider = 'fcm' and platform in ('android', 'ios'))
+    or
+    (provider = 'web_push' and platform = 'web')
+  )
+);
+
+create unique index if not exists notification_endpoints_fcm_token_key
+  on public.notification_endpoints (provider, device_token)
+  where device_token is not null and active = true;
+
+create unique index if not exists notification_endpoints_web_endpoint_key
+  on public.notification_endpoints (provider, endpoint)
+  where endpoint is not null and active = true;
+
+create index if not exists notification_endpoints_user_active_idx
+  on public.notification_endpoints (user_id, active);
+
+create table if not exists public.notification_deliveries (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  category text not null check (category in ('daily_prep', 'streak', 'daily_goal', 'achievement')),
+  local_date date,
+  event_identifier text,
+  event_version text not null default 'v1',
+  status text not null default 'pending' check (status in ('pending', 'sent', 'failed')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (
+    (category in ('daily_prep', 'streak', 'daily_goal') and local_date is not null and event_identifier is null)
+    or
+    (category = 'achievement' and local_date is null and event_identifier is not null)
+  )
+);
+
+create unique index if not exists notification_deliveries_logical_key
+  on public.notification_deliveries (
+    user_id,
+    category,
+    coalesce(local_date, date '9999-12-31'),
+    coalesce(event_identifier, ''),
+    event_version
+  );
+
+create index if not exists notification_deliveries_user_category_idx
+  on public.notification_deliveries (user_id, category);
 
 alter table public.users enable row level security;
 alter table public.problems enable row level security;
@@ -68,7 +144,9 @@ alter table public.user_problem_progress enable row level security;
 alter table public.user_stats enable row level security;
 alter table public.achievements enable row level security;
 alter table public.user_achievements enable row level security;
-alter table public.notifications_settings enable row level security;
+alter table public.notification_settings enable row level security;
+alter table public.notification_endpoints enable row level security;
+alter table public.notification_deliveries enable row level security;
 
 create policy "users own row" on public.users for all using (auth.uid() = id) with check (auth.uid() = id);
 create policy "problems public read" on public.problems for select using (true);
@@ -76,7 +154,8 @@ create policy "progress own rows" on public.user_problem_progress for all using 
 create policy "stats own rows" on public.user_stats for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "achievements public read" on public.achievements for select using (true);
 create policy "user achievements own rows" on public.user_achievements for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
-create policy "notification settings own rows" on public.notifications_settings for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "notification settings own rows" on public.notification_settings for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "notification endpoints own rows" on public.notification_endpoints for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 insert into public.achievements (id,name,description,icon) values
 ('first-blood','First Blood','Complete your first problem.','first_blood'),

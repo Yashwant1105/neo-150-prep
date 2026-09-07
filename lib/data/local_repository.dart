@@ -18,6 +18,11 @@ class LocalRepository {
 
   String _syncQueueKey(String userId) => 'mins_sync_queue_v1_$userId';
 
+  String _motivationKey(String? userId) =>
+      'mins_motivation_v1_${userId ?? 'guest'}';
+
+  String _sessionKey(String? userId) => 'mins_session_v1_${userId ?? 'guest'}';
+
   Future<Map<String, ProblemProgress>> loadProgress(String? userId) async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_progressKey(userId));
@@ -170,5 +175,157 @@ class LocalRepository {
       _prefsKey(userId),
       jsonEncode(value),
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // MOTIVATION TRACKING
+  // ---------------------------------------------------------------------------
+
+  Future<Map<String, dynamic>> loadMotivationState(String? userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_motivationKey(userId));
+
+    return raw == null ? {} : jsonDecode(raw) as Map<String, dynamic>;
+  }
+
+  Future<void> saveMotivationState(
+    String? userId,
+    Map<String, dynamic> state,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setString(
+      _motivationKey(userId),
+      jsonEncode(state),
+    );
+  }
+
+  Future<bool> shouldShowMotivation(
+    String? userId,
+    String eventType,
+  ) async {
+    final state = await loadMotivationState(userId);
+
+    final lastDate = state['lastDate'] as String?;
+    final todayKey = _todayKey();
+
+    if (lastDate != todayKey) {
+      return true;
+    }
+
+    final dailyCount = state['dailyCount'] as int? ?? 0;
+    if (dailyCount >= 3) {
+      return false;
+    }
+
+    final lastEventTypes = state['lastEventTypes'] as List<dynamic>? ?? [];
+    if (lastEventTypes.contains(eventType)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<void> recordMotivationShown(
+    String? userId,
+    String eventType,
+  ) async {
+    final state = await loadMotivationState(userId);
+    final todayKey = _todayKey();
+
+    final lastDate = state['lastDate'] as String?;
+    final dailyCount =
+        (lastDate == todayKey ? (state['dailyCount'] as int? ?? 0) : 0) + 1;
+
+    final lastEventTypes = (lastDate == todayKey
+        ? (state['lastEventTypes'] as List<dynamic>? ?? [])
+        : <dynamic>[])
+      ..add(eventType);
+
+    final updatedState = <String, dynamic>{
+      'lastDate': todayKey,
+      'dailyCount': dailyCount,
+      'lastEventTypes': lastEventTypes,
+    };
+
+    await saveMotivationState(userId, updatedState);
+  }
+
+  String _todayKey() {
+    final now = DateTime.now();
+    return '${now.year}-${now.month}-${now.day}';
+  }
+
+  // ---------------------------------------------------------------------------
+  // SESSION TRACKING
+  // ---------------------------------------------------------------------------
+
+  static const _sessionInactivityMinutes = 120;
+
+  Future<Map<String, dynamic>> loadSessionState(String? userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_sessionKey(userId));
+
+    return raw == null ? {} : jsonDecode(raw) as Map<String, dynamic>;
+  }
+
+  Future<void> saveSessionState(
+    String? userId,
+    Map<String, dynamic> state,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setString(
+      _sessionKey(userId),
+      jsonEncode(state),
+    );
+  }
+
+  Future<int> getSessionCompletedCount(String? userId) async {
+    final state = await loadSessionState(userId);
+    final lastActivity = state['lastActivity'] as String?;
+
+    if (lastActivity == null) {
+      return 0;
+    }
+
+    final lastActivityTime = DateTime.parse(lastActivity);
+    final now = DateTime.now();
+
+    // Reset session if inactive for too long
+    if (now.difference(lastActivityTime).inMinutes >=
+        _sessionInactivityMinutes) {
+      await saveSessionState(userId, {});
+      return 0;
+    }
+
+    return state['completedCount'] as int? ?? 0;
+  }
+
+  Future<void> incrementSessionCompleted(String? userId) async {
+    final state = await loadSessionState(userId);
+    final lastActivity = state['lastActivity'] as String?;
+
+    final now = DateTime.now();
+
+    // Reset session if inactive for too long
+    if (lastActivity != null) {
+      final lastActivityTime = DateTime.parse(lastActivity);
+      if (now.difference(lastActivityTime).inMinutes >=
+          _sessionInactivityMinutes) {
+        await saveSessionState(userId, {
+          'lastActivity': now.toIso8601String(),
+          'completedCount': 1,
+        });
+        return;
+      }
+    }
+
+    final completedCount = (state['completedCount'] as int? ?? 0) + 1;
+
+    await saveSessionState(userId, {
+      'lastActivity': now.toIso8601String(),
+      'completedCount': completedCount,
+    });
   }
 }

@@ -9,3 +9,10 @@ entrypoint = "./functions/ai-coach/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/ai-coach/*.html" ]
+
+[functions.notification-engine]
+enabled = true
+verify_jwt = false
+# The scheduler key is checked inside the function, so the Cron caller must
+# supply the protected header explicitly.
+entrypoint = "./functions/notification-engine/index.ts"

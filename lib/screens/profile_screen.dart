@@ -6,10 +6,230 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../providers/app_controller.dart';
+import '../services/notification_service.dart';
 import '../services/supabase_service.dart';
 import '../widgets/ui.dart';
 import '../widgets/app_theme.dart';
 import 'package:flutter/foundation.dart';
+
+class _NotificationPreferencesCard extends StatefulWidget {
+  const _NotificationPreferencesCard();
+
+  @override
+  State<_NotificationPreferencesCard> createState() =>
+      _NotificationPreferencesCardState();
+}
+
+class _NotificationPreferencesCardState
+    extends State<_NotificationPreferencesCard> {
+  bool _notificationsEnabled = false;
+  bool _dailyPrepReminderEnabled = false;
+  bool _dailyGoalReminderEnabled = false;
+  bool _achievementNotificationsEnabled = false;
+  bool _streakReminderEnabled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final settings = await SupabaseService().fetchNotificationSettings();
+    if (!mounted) return;
+    setState(() {
+      _notificationsEnabled = settings['notifications_enabled'] == true;
+      _dailyPrepReminderEnabled =
+          settings['daily_prep_reminder_enabled'] == true;
+      _dailyGoalReminderEnabled =
+          settings['daily_goal_reminder_enabled'] == true;
+      _achievementNotificationsEnabled =
+          settings['achievement_notifications_enabled'] == true;
+      _streakReminderEnabled = settings['streak_reminder_enabled'] == true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GlowCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.notifications_outlined),
+            title: const Text(
+              'Push notifications',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            subtitle: Text(
+              _notificationsEnabled
+                  ? 'Enabled for this account'
+                  : 'Enable reminders on this device',
+              style: humanTextStyle(
+                color: muted,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            trailing: Switch(
+              value: _notificationsEnabled,
+              onChanged: (value) async {
+                if (value) {
+                  final registered =
+                      await NotificationService.instance.enableForCurrentUser();
+                  if (!mounted || !registered) return;
+                } else {
+                  await NotificationService.instance.disableForCurrentUser();
+                  if (!mounted) return;
+                }
+
+                setState(() {
+                  _notificationsEnabled = value;
+                });
+              },
+            ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.school_outlined),
+            title: const Text(
+              'Daily prep reminders',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            subtitle: Text(
+              _dailyPrepReminderEnabled
+                  ? 'Daily problem reminders enabled'
+                  : 'Get daily problem reminders',
+              style: humanTextStyle(
+                color: muted,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            trailing: Switch(
+              value: _notificationsEnabled ? _dailyPrepReminderEnabled : false,
+              onChanged: _notificationsEnabled
+                  ? (value) async {
+                      await SupabaseService()
+                          .updateDailyPrepReminderEnabled(value);
+                      if (!mounted) return;
+                      setState(() {
+                        _dailyPrepReminderEnabled = value;
+                      });
+                    }
+                  : null,
+            ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.flag_outlined),
+            title: const Text(
+              'Daily goal reminders',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            subtitle: Text(
+              _dailyGoalReminderEnabled
+                  ? 'Daily goal reminders enabled'
+                  : 'Get daily goal reminders',
+              style: humanTextStyle(
+                color: muted,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            trailing: Switch(
+              value: _notificationsEnabled ? _dailyGoalReminderEnabled : false,
+              onChanged: _notificationsEnabled
+                  ? (value) async {
+                      await SupabaseService()
+                          .updateDailyGoalReminderEnabled(value);
+                      if (!mounted) return;
+                      setState(() {
+                        _dailyGoalReminderEnabled = value;
+                      });
+                    }
+                  : null,
+            ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.local_fire_department_outlined),
+            title: const Text(
+              'Streak reminders',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            subtitle: Text(
+              _streakReminderEnabled
+                  ? 'Streak reminders enabled'
+                  : 'Get streak reminders',
+              style: humanTextStyle(
+                color: muted,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            trailing: Switch(
+              value: _notificationsEnabled ? _streakReminderEnabled : false,
+              onChanged: _notificationsEnabled
+                  ? (value) async {
+                      await SupabaseService()
+                          .updateStreakReminderEnabled(value);
+                      if (!mounted) return;
+                      setState(() {
+                        _streakReminderEnabled = value;
+                      });
+                    }
+                  : null,
+            ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.emoji_events_outlined),
+            title: const Text(
+              'Achievement notifications',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            subtitle: Text(
+              _achievementNotificationsEnabled
+                  ? 'Achievement notifications enabled'
+                  : 'Get achievement notifications',
+              style: humanTextStyle(
+                color: muted,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            trailing: Switch(
+              value: _notificationsEnabled
+                  ? _achievementNotificationsEnabled
+                  : false,
+              onChanged: _notificationsEnabled
+                  ? (value) async {
+                      await SupabaseService()
+                          .updateAchievementNotificationsEnabled(value);
+                      if (!mounted) return;
+                      setState(() {
+                        _achievementNotificationsEnabled = value;
+                      });
+                    }
+                  : null,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -23,7 +243,13 @@ class ProfileScreen extends ConsumerWidget {
         child: CircularProgressIndicator(),
       ),
       error: (e, _) => Center(
-        child: Text('$e'),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'Unable to load profile: $e',
+            textAlign: TextAlign.center,
+          ),
+        ),
       ),
       data: (s) {
         final user = SupabaseService.currentSession?.user;
@@ -143,6 +369,16 @@ class ProfileScreen extends ConsumerWidget {
               ),
 
               const SizedBox(height: 24),
+
+              if (kIsWeb ||
+                  defaultTargetPlatform == TargetPlatform.android) ...[
+                const SectionTitle(
+                  title: 'Notifications',
+                ),
+                const SizedBox(height: 8),
+                const _NotificationPreferencesCard(),
+                const SizedBox(height: 24),
+              ],
 
               // =============================================================
               // ACCOUNT & DATA
@@ -365,7 +601,7 @@ class ProfileScreen extends ConsumerWidget {
     // =======================================================================
 
     final payload = {
-      'app': "Neo 150 Prep",
+      'app': "NEO 150 PREP",
       'exported_at': DateTime.now().toIso8601String(),
       'xp': s.xp,
       'level': s.level,
