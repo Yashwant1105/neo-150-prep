@@ -13,7 +13,7 @@ A modern, cross-platform interview preparation app built around the **NeetCode 1
 &nbsp; • &nbsp;
 <a href="https://github.com/Yashwant1105/mins-prep">📦 GitHub</a>
 &nbsp; • &nbsp;
-<a href="YOUR_APK_URL">📱 Download APK</a>
+<a href="https://drive.google.com/file/d/15lTh5UI629JBgy44pBqBLgNW2Wc7QjV1/view?usp=drive_link">📱 Download APK</a>
 
 <br /><br />
 
