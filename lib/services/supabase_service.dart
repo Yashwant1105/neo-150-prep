@@ -234,6 +234,22 @@ class SupabaseService {
         .eq('endpoint', endpoint);
   }
 
+  Future<void> deactivateOtherWebPushEndpoints(String endpoint) async {
+    final userId = currentSession?.user.id;
+    if (userId == null) return;
+
+    await client
+        .from('notification_endpoints')
+        .update({
+          'active': false,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('user_id', userId)
+        .eq('provider', 'web_push')
+        .eq('active', true)
+        .neq('endpoint', endpoint);
+  }
+
   // ---------------------------------------------------------------------------
   // PROBLEM UUID
   // ---------------------------------------------------------------------------

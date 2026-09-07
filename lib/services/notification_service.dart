@@ -150,24 +150,36 @@ class NotificationService {
   }
 
   Future<void> syncForCurrentUser() async {
-    if (SupabaseService.currentSession == null) return;
+    debugPrint('[NOTIF SYNC] entered');
+    debugPrint(
+      '[NOTIF SYNC] currentSession: ${SupabaseService.currentSession != null}',
+    );
+    debugPrint(
+      '[NOTIF SYNC] platform: ${kIsWeb ? 'web' : _isAndroid ? 'android' : 'other'}',
+    );
+    try {
+      if (SupabaseService.currentSession == null) return;
 
-    if (kIsWeb) {
+      if (kIsWeb) {
+        await initialize();
+        debugPrint('[NOTIF SYNC] web registration starting');
+        await registerCurrentWebPushSubscription();
+        debugPrint('[NOTIF SYNC] web registration completed');
+        debugPrint('[NOTIF SYNC] sync completed');
+        return;
+      }
+
+      if (!_isAndroid) return;
+
       await initialize();
+
       final settings = await SupabaseService().fetchNotificationSettings();
       if (settings['notifications_enabled'] == true) {
-        await registerCurrentWebPushSubscription();
+        await registerCurrentToken();
       }
-      return;
-    }
-
-    if (!_isAndroid) return;
-
-    await initialize();
-
-    final settings = await SupabaseService().fetchNotificationSettings();
-    if (settings['notifications_enabled'] == true) {
-      await registerCurrentToken();
+      debugPrint('[NOTIF SYNC] sync completed');
+    } catch (error, stackTrace) {
+      debugPrint('Notification endpoint sync failed: $error\n$stackTrace');
     }
   }
 
@@ -182,9 +194,14 @@ class NotificationService {
   }
 
   Future<void> registerCurrentWebPushSubscription() async {
+    debugPrint('[WEB PUSH] registration entered');
     if (!kIsWeb || SupabaseService.currentSession == null) return;
 
     final subscription = await web_push.currentWebPushSubscription();
+    debugPrint('[WEB PUSH] subscription exists: ${subscription != null}');
+    debugPrint(
+      '[WEB PUSH] endpoint: ${subscription == null ? '<none>' : subscription.endpoint.substring(0, subscription.endpoint.length < 30 ? subscription.endpoint.length : 30)}',
+    );
     if (subscription == null) return;
 
     await SupabaseService().upsertWebPushEndpoint(
@@ -193,6 +210,11 @@ class NotificationService {
       auth: subscription.auth,
       metadata: subscription.metadata,
     );
+    debugPrint('[WEB PUSH] upsert completed');
+    await SupabaseService().deactivateOtherWebPushEndpoints(
+      subscription.endpoint,
+    );
+    debugPrint('[WEB PUSH] stale endpoint cleanup completed');
   }
 
   Future<void> deactivateCurrentEndpoint() async {

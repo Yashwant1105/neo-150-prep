@@ -1,4 +1,4 @@
-export type NotificationMode = "scheduled" | "process-pending";
+export type NotificationMode = "scheduled" | "process-pending" | "test";
 export type NotificationCategory =
   | "daily_prep"
   | "daily_goal"
@@ -134,6 +134,19 @@ export interface ProcessPendingResult {
   failed: number;
 }
 
+export interface TestRunResult {
+  user_id: string;
+  endpoints_found: number;
+  web_push_endpoints: number;
+  sent: number;
+  failed: number;
+  results: Array<{
+    endpoint_id: string;
+    ok: boolean;
+    error_code?: string;
+  }>;
+}
+
 export interface RequestContextResult {
   response: Response;
   scheduled?: ScheduledRunResult;
@@ -187,6 +200,16 @@ export function createNotificationEngine(
 
     if (mode === "scheduled") {
       const result = await runScheduled();
+      return jsonResponse(result, 200);
+    }
+
+    if (mode === "test") {
+      const userId = body?.user_id;
+      if (typeof userId !== "string" || userId.trim().length === 0) {
+        return jsonResponse({ error: "user_id is required." }, 400);
+      }
+
+      const result = await runTest(userId.trim());
       return jsonResponse(result, 200);
     }
 
@@ -319,6 +342,72 @@ export function createNotificationEngine(
       claimed,
       sent,
       failed,
+    };
+  }
+
+  async function runTest(userId: string): Promise<TestRunResult> {
+    const endpoints = await dependencies.repository.listActiveEndpoints(userId);
+    const webPushEndpoints = endpoints.filter((endpoint) =>
+      endpoint.provider === "web_push"
+    );
+    const payload: NotificationPayload = {
+      title: "Neo 150 Test 🔔",
+      body: "Web Push notifications are working!",
+      data: {
+        category: "daily_prep",
+        destination: "push",
+        entity_id: null,
+        event_identifier: "manual-test",
+        event_version: "test-v1",
+      },
+    };
+    const results: TestRunResult["results"] = [];
+    let sent = 0;
+
+    for (const endpoint of webPushEndpoints) {
+      try {
+        const provider = getProvider(endpoint.provider);
+        const outcome = provider
+          ? await provider.send(endpoint, payload)
+          : {
+            ok: false as const,
+            retryable: false,
+            deactivateEndpoint: false,
+            errorCode: "provider_unavailable",
+          };
+
+        if (outcome.ok) {
+          sent++;
+          results.push({ endpoint_id: endpoint.id, ok: true });
+          continue;
+        }
+
+        if (outcome.deactivateEndpoint) {
+          await dependencies.repository.deactivateEndpoint(endpoint.id);
+        }
+        results.push({
+          endpoint_id: endpoint.id,
+          ok: false,
+          error_code: outcome.errorCode,
+        });
+      } catch (error) {
+        results.push({
+          endpoint_id: endpoint.id,
+          ok: false,
+          error_code: error instanceof Error
+            ? error.message
+            : "provider_exception",
+        });
+      }
+    }
+
+    return {
+      user_id: userId,
+      endpoints_found: endpoints.length,
+      web_push_endpoints: webPushEndpoints.length,
+      sent,
+      failed: webPushEndpoints.length - sent,
+      results,
     };
   }
 
@@ -553,7 +642,7 @@ export function isWithinReminderWindow(now: ZonedCalendar, time: string): boolea
   const currentMinutes = now.hour * 60 + now.minute;
   const dueMinutes = parsed.hour * 60 + parsed.minute;
   const delta = currentMinutes - dueMinutes;
-  return delta >= 0 && delta < REMINDER_WINDOW_MINUTES;
+  return delta >= 0 && delta <= REMINDER_WINDOW_MINUTES;
 }
 
 export function toZonedCalendar(date: Date, timeZone: string): ZonedCalendar {
@@ -617,7 +706,11 @@ export function normalizeTimeZone(timeZone: string | null | undefined): string {
 }
 
 function normalizeMode(value: unknown): NotificationMode | null {
-  if (value === "scheduled" || value === "process-pending") {
+  if (
+    value === "scheduled" ||
+    value === "process-pending" ||
+    value === "test"
+  ) {
     return value;
   }
 

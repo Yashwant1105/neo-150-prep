@@ -69,7 +69,9 @@ class _AuthGateState extends ConsumerState<AuthGate>
     _session = SupabaseService.currentSession;
 
     if (_session != null) {
+      debugPrint('[NOTIF SYNC] call starting: initial session');
       NotificationService.instance.syncForCurrentUser();
+      debugPrint('[NOTIF SYNC] call returned: initial session');
     }
 
     // Listen for login/logout changes.
@@ -79,7 +81,14 @@ class _AuthGateState extends ConsumerState<AuthGate>
 
       debugPrint('AUTH EVENT: $event');
 
-      if (!mounted) return;
+      if (session == null && event == AuthChangeEvent.initialSession) {
+        debugPrint('[AUTH] initialSession has null session');
+      }
+
+      if (!mounted) {
+        debugPrint('[AUTH] AuthGate unmounted, skipping sync');
+        return;
+      }
 
       setState(() {
         _session = session;
@@ -87,7 +96,9 @@ class _AuthGateState extends ConsumerState<AuthGate>
 
       // Refresh app data after login.
       if (session != null) {
+        debugPrint('[NOTIF SYNC] call starting: auth event');
         NotificationService.instance.syncForCurrentUser();
+        debugPrint('[NOTIF SYNC] call returned: auth event');
         ref.invalidate(appControllerProvider);
       } else {
         ref.invalidate(appControllerProvider);

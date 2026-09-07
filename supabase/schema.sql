@@ -59,7 +59,7 @@ create table if not exists public.user_achievements (
 create table if not exists public.notification_settings (
   user_id uuid primary key references auth.users(id) on delete cascade,
   streak_reminder_enabled boolean not null default true,
-  streak_reminder_time time not null default '20:00',
+  streak_reminder_time time not null default '14:30:00',
   updated_at timestamptz not null default now()
 );
 
@@ -68,7 +68,7 @@ alter table public.notification_settings
   add column if not exists daily_prep_reminder_enabled boolean not null default false,
   add column if not exists daily_goal_reminder_enabled boolean not null default false,
   add column if not exists achievement_notifications_enabled boolean not null default false,
-  add column if not exists preferred_reminder_time time not null default '20:00',
+  add column if not exists preferred_reminder_time time not null default '14:30:00',
   add column if not exists timezone text not null default 'UTC',
   add column if not exists created_at timestamptz not null default now();
 
