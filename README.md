@@ -11,7 +11,7 @@ A modern, cross-platform interview preparation app built around the **NeetCode 1
 <!-- Replace these with your actual links -->
 <a href="https://neo-150-prep.web.app/">🌐 Live Web App</a>
 &nbsp; • &nbsp;
-<a href="https://github.com/Yashwant1105/mins-prep">📦 GitHub</a>
+<a href="https://github.com/Yashwant1105/neo-150-prep">📦 GitHub</a>
 &nbsp; • &nbsp;
 <a href="https://drive.google.com/file/d/15lTh5UI629JBgy44pBqBLgNW2Wc7QjV1/view?usp=drive_link">📱 Download APK</a>
 
@@ -430,7 +430,7 @@ Authenticated Session
 # 🗂 Project Structure
 
 ```text
-mins_prep/
+neo-150-prep/
 │
 ├── lib/
 │   ├── config/
@@ -508,7 +508,7 @@ git clone YOUR_REPOSITORY_URL
 ```
 
 ```bash
-cd mins_prep
+cd neo-150-prep
 ```
 
 ---
