@@ -743,6 +743,7 @@ class _InterviewSession extends StatelessWidget {
                 _ComplexityRichText(
                   text: question!,
                   baseStyle: GoogleFonts.inter(
+                    color: white,
                     fontSize: 16,
                     height: 1.5,
                     fontWeight: FontWeight.w700,
